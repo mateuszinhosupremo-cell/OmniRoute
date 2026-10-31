@@ -1,0 +1,224 @@
+{
+  "format_version": "1.20.20",
+  "sound_definitions": {
+    "sym.mk5.suitup": {
+      "category": "player",
+      "sounds": [
+        {
+          "name": "sounds/sym/mk5_suitup",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.suitoff": {
+      "category": "player",
+      "sounds": [
+        {
+          "name": "sounds/sym/mk5_suitoff",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.helmet_close": {
+      "category": "player",
+      "sounds": [
+        "sounds/sym/helmet_close"
+      ]
+    },
+    "sym.mk5.helmet_open": {
+      "category": "player",
+      "sounds": [
+        "sounds/sym/helmet_open"
+      ]
+    },
+    "sym.mk5.power_on": {
+      "category": "player",
+      "sounds": [
+        "sounds/sym/suit_power_on"
+      ]
+    },
+    "sym.mk5.power_down": {
+      "category": "player",
+      "sounds": [
+        {
+          "name": "sounds/sym/power_down",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.power_up": {
+      "category": "player",
+      "sounds": [
+        {
+          "name": "sounds/sym/power_up",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.hud_boot": {
+      "category": "player",
+      "sounds": [
+        {
+          "name": "sounds/sym/hud_boot",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.hud_off": {
+      "category": "player",
+      "sounds": [
+        {
+          "name": "sounds/sym/hud_off",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.alarm": {
+      "category": "player",
+      "sounds": [
+        {
+          "name": "sounds/sym/alarm",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.scan": {
+      "category": "player",
+      "sounds": [
+        {
+          "name": "sounds/sym/scan",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.scan_ping": {
+      "category": "player",
+      "sounds": [
+        {
+          "name": "sounds/sym/scan_ping",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.lock_tick": {
+      "category": "player",
+      "sounds": [
+        {
+          "name": "sounds/sym/lock_tick",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.lock_on": {
+      "category": "player",
+      "sounds": [
+        {
+          "name": "sounds/sym/lock_on",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.lock_lost": {
+      "category": "player",
+      "sounds": [
+        {
+          "name": "sounds/sym/lock_lost",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.target": {
+      "category": "player",
+      "sounds": [
+        {
+          "name": "sounds/sym/target",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.thruster_start": {
+      "category": "player",
+      "min_distance": 4.0,
+      "max_distance": 48.0,
+      "sounds": [
+        {
+          "name": "sounds/sym/thruster_start",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.thruster_loop": {
+      "category": "player",
+      "min_distance": 4.0,
+      "max_distance": 48.0,
+      "sounds": [
+        {
+          "name": "sounds/sym/thruster_loop",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.thruster_boost": {
+      "category": "player",
+      "min_distance": 4.0,
+      "max_distance": 48.0,
+      "sounds": [
+        {
+          "name": "sounds/sym/thruster_boost",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.thruster_stop": {
+      "category": "player",
+      "min_distance": 4.0,
+      "max_distance": 48.0,
+      "sounds": [
+        {
+          "name": "sounds/sym/thruster_stop",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.sonic_boom": {
+      "category": "player",
+      "min_distance": 16.0,
+      "max_distance": 160.0,
+      "sounds": [
+        {
+          "name": "sounds/sym/sonic_boom",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.landing": {
+      "category": "player",
+      "min_distance": 4.0,
+      "max_distance": 40.0,
+      "sounds": [
+        {
+          "name": "sounds/sym/landing",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.shield": {
+      "category": "player",
+      "sounds": [
+        {
+          "name": "sounds/sym/shield",
+          "load_on_low_memory": true
+        }
+      ]
+    },
+    "sym.mk5.menu": {
+      "category": "player",
+      "sounds": [
+        {
+          "name": "sounds/sym/menu",
+          "load_on_low_memory": true
+        }
+      ]
+    }
+  }
+}

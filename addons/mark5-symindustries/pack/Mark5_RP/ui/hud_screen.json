@@ -1,0 +1,42 @@
+{
+  "namespace": "hud",
+  "hud_title_text": {
+    "bindings": [
+      {
+        "binding_name": "#hud_title_text_string",
+        "binding_type": "global"
+      },
+      {
+        "binding_type": "view",
+        "source_property_name": "(not (('%.4s' * #hud_title_text_string) = 'MK5H'))",
+        "target_property_name": "#visible"
+      }
+    ]
+  },
+  "hud_player_renderer": {
+    "bindings": [
+      {
+        "binding_name": "#hud_title_text_string",
+        "binding_type": "global"
+      },
+      {
+        "binding_type": "view",
+        "source_property_name": "(not ((('%.4s' * #hud_title_text_string) = 'MK5H') and (not (('%.5s' * #hud_title_text_string) = 'MK5H0'))))",
+        "target_property_name": "#visible"
+      }
+    ]
+  },
+  "root_panel": {
+    "modifications": [
+      {
+        "array_name": "controls",
+        "operation": "insert_front",
+        "value": [
+          {
+            "sym_mk5_hud_root@sym_mk5_hud.root": {}
+          }
+        ]
+      }
+    ]
+  }
+}

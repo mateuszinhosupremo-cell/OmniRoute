@@ -1,0 +1,253 @@
+{
+  "_doc": "Single source of truth for the Mark V HUD data string. The script sends ONE title per update: header + fields in this exact order. Every field has a FIXED BYTE WIDTH (UTF-8 bytes, not characters). 'char'/'digits' fields are ASCII only. 'text' fields may contain § color codes, \\n and accented Portuguese letters; the encoder pads them with ASCII spaces to the exact byte width and truncates on a character boundary if longer. JSON UI extracts a field at byte range [start, end) with: ((('%.<end>s' * #hud_title_text_string) - ('%.<start>s' * #hud_title_text_string))). Offsets are computed by tools/gen_protocol.mjs (header occupies bytes 0..3).",
+  "header": "MK5H",
+  "fields": [
+    {
+      "name": "mode",
+      "type": "char",
+      "width": 1,
+      "values": {
+        "0": "hidden (whole HUD invisible)",
+        "1": "normal",
+        "2": "boot sequence (show boot_text overlay, main panels hidden)",
+        "3": "power failure (show red offline overlay with boot_text, main panels hidden)"
+      }
+    },
+    {
+      "name": "energy_pct",
+      "type": "digits",
+      "width": 3,
+      "values": "000..100"
+    },
+    {
+      "name": "energy_frame",
+      "type": "digits",
+      "width": 2,
+      "values": "00..20 (gauge frame index; texture textures/sym/hud/energy_<NN>)"
+    },
+    {
+      "name": "energy_state",
+      "type": "char",
+      "width": 1,
+      "values": {
+        "n": "normal (cyan)",
+        "w": "low <25% (amber)",
+        "c": "critical <10% (red, pulsing)"
+      }
+    },
+    {
+      "name": "integrity_frame",
+      "type": "digits",
+      "width": 2,
+      "values": "00..10 (suit durability bar; texture textures/sym/hud/integrity_<NN>)"
+    },
+    {
+      "name": "reticle",
+      "type": "char",
+      "width": 1,
+      "values": {
+        "i": "idle, nothing under the crosshair",
+        "h": "hostile target",
+        "n": "neutral target",
+        "p": "passive target",
+        "j": "player target",
+        "l": "locking in progress",
+        "k": "target locked"
+      },
+      "note": "texture textures/sym/hud/reticle_<c>"
+    },
+    {
+      "name": "lock_frame",
+      "type": "char",
+      "width": 1,
+      "values": "0..5 lock acquisition progress (texture textures/sym/hud/lock_<c>; 0 = nothing drawn/hidden)"
+    },
+    {
+      "name": "target_class",
+      "type": "char",
+      "width": 1,
+      "values": {
+        "0": "no target (target panel hidden)",
+        "h": "hostile (red)",
+        "n": "neutral (white)",
+        "p": "passive (green)",
+        "j": "player (white/cyan)"
+      }
+    },
+    {
+      "name": "target_hp_frame",
+      "type": "digits",
+      "width": 2,
+      "values": "00..10 (target health bar; texture textures/sym/hud/hp_<class>_<NN>)"
+    },
+    {
+      "name": "flight",
+      "type": "char",
+      "width": 1,
+      "values": {
+        "0": "not flying (flight panel hidden)",
+        "h": "hover",
+        "f": "cruise",
+        "b": "boost",
+        "e": "emergency landing"
+      }
+    },
+    {
+      "name": "thrust_frame",
+      "type": "digits",
+      "width": 2,
+      "values": "00..10 (thrust bar; texture textures/sym/hud/thrust_<NN>)"
+    },
+    {
+      "name": "scan",
+      "type": "char",
+      "width": 1,
+      "values": {
+        "0": "scan panel hidden",
+        "1": "showing scan results",
+        "2": "scan sweep in progress"
+      }
+    },
+    {
+      "name": "alert",
+      "type": "char",
+      "width": 1,
+      "values": {
+        "0": "no alert (alert banner hidden)",
+        "i": "info (cyan)",
+        "w": "warning (amber)",
+        "c": "critical (red, blinking)"
+      }
+    },
+    {
+      "name": "led_head",
+      "type": "char",
+      "width": 1,
+      "values": {
+        "0": "eyes LED off",
+        "1": "on"
+      }
+    },
+    {
+      "name": "led_chest",
+      "type": "char",
+      "width": 1,
+      "values": {
+        "0": "chest reactor LED off",
+        "1": "on"
+      }
+    },
+    {
+      "name": "led_arms",
+      "type": "char",
+      "width": 1,
+      "values": {
+        "0": "palm repulsor LEDs off",
+        "1": "on"
+      }
+    },
+    {
+      "name": "led_legs",
+      "type": "char",
+      "width": 1,
+      "values": {
+        "0": "boot thruster LEDs off",
+        "1": "on"
+      }
+    },
+    {
+      "name": "lock_mode",
+      "type": "char",
+      "width": 1,
+      "values": {
+        "0": "homing reticle disarmed",
+        "1": "armed (show 'MIRA TELEGUIADA' tag)"
+      }
+    },
+    {
+      "name": "threat",
+      "type": "char",
+      "width": 1,
+      "values": {
+        "0": "no hostile nearby",
+        "1": "hostile within 16 blocks (red edge glow on the visor)"
+      }
+    },
+    {
+      "name": "compass",
+      "type": "text",
+      "width": 64,
+      "note": "one line compass tape, already centered by the script"
+    },
+    {
+      "name": "coords_text",
+      "type": "text",
+      "width": 48,
+      "note": "one line: position"
+    },
+    {
+      "name": "energy_text",
+      "type": "text",
+      "width": 32,
+      "note": "one line next to the energy gauge, e.g. §b087% §7+2.0/s"
+    },
+    {
+      "name": "suit_text",
+      "type": "text",
+      "width": 72,
+      "note": "up to 3 lines under the 3D armor view"
+    },
+    {
+      "name": "systems_text",
+      "type": "text",
+      "width": 160,
+      "note": "up to 6 lines, systems list"
+    },
+    {
+      "name": "target_text",
+      "type": "text",
+      "width": 160,
+      "note": "up to 4 lines, target analysis"
+    },
+    {
+      "name": "flight_text",
+      "type": "text",
+      "width": 112,
+      "note": "up to 3 lines, flight telemetry"
+    },
+    {
+      "name": "scan_text",
+      "type": "text",
+      "width": 288,
+      "note": "up to 8 lines, area scan results"
+    },
+    {
+      "name": "alert_text",
+      "type": "text",
+      "width": 64,
+      "note": "one line alert banner"
+    },
+    {
+      "name": "boot_text",
+      "type": "text",
+      "width": 192,
+      "note": "up to 6 lines, boot / power-failure overlay"
+    },
+    {
+      "name": "integrity_pct",
+      "type": "digits",
+      "width": 3,
+      "values": "000..100 suit resistance/durability percent (100 = undamaged)"
+    },
+    {
+      "name": "integrity_state",
+      "type": "char",
+      "width": 1,
+      "values": {
+        "n": ">= 60% (cyan)",
+        "w": "25..59% (amber)",
+        "c": "< 25% (red, blinking 'ARMADURA CRÍTICA' tag)"
+      }
+    }
+  ]
+}

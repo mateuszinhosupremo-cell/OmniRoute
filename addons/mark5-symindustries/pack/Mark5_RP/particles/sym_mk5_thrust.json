@@ -1,0 +1,87 @@
+{
+  "format_version": "1.10.0",
+  "particle_effect": {
+    "description": {
+      "identifier": "sym:mk5_thrust",
+      "basic_render_parameters": {
+        "material": "particles_add",
+        "texture": "textures/sym/particle/mk5_fx"
+      }
+    },
+    "components": {
+      "minecraft:emitter_initialization": {
+        "creation_expression": "variable.dir ?? { variable.dir.x = 0.0; variable.dir.y = -1.0; variable.dir.z = 0.0; }; variable.vel ?? { variable.vel.x = 0.0; variable.vel.y = 0.0; variable.vel.z = 0.0; }; variable.pw = math.clamp(variable.power ?? 1.0, 0.0, 1.0); variable.spd = 0.6 + 0.4 * variable.pw; variable.boost = math.clamp((variable.pw - 0.78) * 4.5, 0.0, 1.0);"
+      },
+      "minecraft:emitter_rate_instant": {
+        "num_particles": "6 + 8 * math.clamp(variable.power ?? 1.0, 0.0, 1.0)"
+      },
+      "minecraft:emitter_lifetime_once": {
+        "active_time": 0.05
+      },
+      "minecraft:emitter_shape_custom": {
+        "offset": [
+          "variable.dir.x * variable.particle_random_2 * 0.1 + math.random(-0.035, 0.035)",
+          "variable.dir.y * variable.particle_random_2 * 0.1 + math.random(-0.035, 0.035)",
+          "variable.dir.z * variable.particle_random_2 * 0.1 + math.random(-0.035, 0.035)"
+        ],
+        "direction": [
+          "(variable.dir.x * ((1.8 + variable.particle_random_1 * 2.2) * variable.spd) + variable.vel.x * 20.0) + math.random(-0.45, 0.45)",
+          "(variable.dir.y * ((1.8 + variable.particle_random_1 * 2.2) * variable.spd) + variable.vel.y * 20.0) + math.random(-0.45, 0.45)",
+          "(variable.dir.z * ((1.8 + variable.particle_random_1 * 2.2) * variable.spd) + variable.vel.z * 20.0) + math.random(-0.45, 0.45)"
+        ]
+      },
+      "minecraft:particle_initialization": {
+        "per_render_expression": "variable.lt = math.clamp(variable.particle_age / variable.particle_lifetime, 0.0, 1.0); variable.om = variable.particle_random_4 < 0.25 ? variable.boost : 0.0;"
+      },
+      "minecraft:particle_lifetime_expression": {
+        "max_lifetime": "0.06 + variable.particle_random_3 * 0.08"
+      },
+      "minecraft:particle_initial_speed": "math.sqrt((variable.dir.x * ((1.8 + variable.particle_random_1 * 2.2) * variable.spd) + variable.vel.x * 20.0) * (variable.dir.x * ((1.8 + variable.particle_random_1 * 2.2) * variable.spd) + variable.vel.x * 20.0) + (variable.dir.y * ((1.8 + variable.particle_random_1 * 2.2) * variable.spd) + variable.vel.y * 20.0) * (variable.dir.y * ((1.8 + variable.particle_random_1 * 2.2) * variable.spd) + variable.vel.y * 20.0) + (variable.dir.z * ((1.8 + variable.particle_random_1 * 2.2) * variable.spd) + variable.vel.z * 20.0) * (variable.dir.z * ((1.8 + variable.particle_random_1 * 2.2) * variable.spd) + variable.vel.z * 20.0)) + 0.01",
+      "minecraft:particle_motion_dynamic": {},
+      "minecraft:particle_appearance_billboard": {
+        "size": [
+          "(0.135 - 0.04 * variable.particle_random_1) * (0.7 + 0.3 * variable.pw) * (1.0 - 0.6 * variable.lt) * (1.0 + 0.5 * variable.om)",
+          "(0.135 - 0.04 * variable.particle_random_1) * (0.7 + 0.3 * variable.pw) * (1.0 - 0.6 * variable.lt) * (1.0 + 0.5 * variable.om)"
+        ],
+        "facing_camera_mode": "lookat_xyz",
+        "uv": {
+          "texture_width": 256,
+          "texture_height": 384,
+          "uv": [
+            0,
+            0
+          ],
+          "uv_size": [
+            1,
+            1
+          ],
+          "flipbook": {
+            "base_UV": [
+              0,
+              128
+            ],
+            "size_UV": [
+              32,
+              32
+            ],
+            "step_UV": [
+              32,
+              0
+            ],
+            "frames_per_second": 20,
+            "max_frame": 8,
+            "stretch_to_lifetime": true
+          }
+        }
+      },
+      "minecraft:particle_appearance_tinting": {
+        "color": [
+          1.0,
+          "math.lerp(0.97 - 0.12 * variable.lt - 0.25 * variable.lt * variable.lt, 0.55 - 0.15 * variable.lt, variable.om)",
+          "math.lerp(0.75 * math.pow(1.0 - variable.lt, 4.0) + 0.05, 0.1, variable.om)",
+          "math.lerp((1.0 - variable.lt * variable.lt) * (0.5 + 0.2 * variable.pw), 0.35 * (1.0 - variable.lt), variable.om)"
+        ]
+      }
+    }
+  }
+}

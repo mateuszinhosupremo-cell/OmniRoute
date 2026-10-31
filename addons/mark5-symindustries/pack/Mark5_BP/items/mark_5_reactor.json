@@ -1,0 +1,24 @@
+{
+  "format_version": "1.21.90",
+  "minecraft:item": {
+    "description": {
+      "identifier": "sym:mark_5_reactor",
+      "menu_category": {
+        "category": "equipment"
+      }
+    },
+    "components": {
+      "minecraft:icon": {
+        "textures": {
+          "default": "sym_mk5_reactor"
+        }
+      },
+      "minecraft:display_name": {
+        "value": "Reator Arc (Painel Mark V)"
+      },
+      "minecraft:max_stack_size": 1,
+      "minecraft:glint": true,
+      "sym:mk5_reactor": {}
+    }
+  }
+}

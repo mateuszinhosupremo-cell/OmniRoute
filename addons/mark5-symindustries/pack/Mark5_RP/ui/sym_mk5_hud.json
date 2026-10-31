@@ -1,0 +1,2291 @@
+{
+  "namespace": "sym_mk5_hud",
+  "anim_blink_out": {
+    "anim_type": "alpha",
+    "easing": "in_out_sine",
+    "duration": 0.32,
+    "from": 1,
+    "to": 0.12,
+    "next": "@sym_mk5_hud.anim_blink_in"
+  },
+  "anim_blink_in": {
+    "anim_type": "alpha",
+    "easing": "in_out_sine",
+    "duration": 0.32,
+    "from": 0.12,
+    "to": 1,
+    "next": "@sym_mk5_hud.anim_blink_out"
+  },
+  "anim_pulse_out": {
+    "anim_type": "alpha",
+    "easing": "in_out_sine",
+    "duration": 0.75,
+    "from": 1,
+    "to": 0.35,
+    "next": "@sym_mk5_hud.anim_pulse_in"
+  },
+  "anim_pulse_in": {
+    "anim_type": "alpha",
+    "easing": "in_out_sine",
+    "duration": 0.75,
+    "from": 0.35,
+    "to": 1,
+    "next": "@sym_mk5_hud.anim_pulse_out"
+  },
+  "anim_armor_scan": {
+    "anim_type": "offset",
+    "easing": "linear",
+    "duration": 2.6,
+    "from": [
+      0,
+      2
+    ],
+    "to": [
+      0,
+      62
+    ],
+    "next": "@sym_mk5_hud.anim_armor_scan"
+  },
+  "anim_scan_sweep": {
+    "anim_type": "offset",
+    "easing": "linear",
+    "duration": 1.1,
+    "from": [
+      2,
+      12
+    ],
+    "to": [
+      2,
+      58
+    ],
+    "next": "@sym_mk5_hud.anim_scan_sweep"
+  },
+  "anim_boot_scan": {
+    "anim_type": "offset",
+    "easing": "in_out_sine",
+    "duration": 1.8,
+    "from": [
+      2,
+      3
+    ],
+    "to": [
+      2,
+      95
+    ],
+    "next": "@sym_mk5_hud.anim_boot_scan"
+  },
+  "anim_reticle_ring": {
+    "anim_type": "flip_book",
+    "initial_uv": [
+      0,
+      0
+    ],
+    "frame_count": 9,
+    "frame_step": 96,
+    "fps": 10,
+    "easing": "linear"
+  },
+  "anim_radar": {
+    "anim_type": "flip_book",
+    "initial_uv": [
+      0,
+      0
+    ],
+    "frame_count": 12,
+    "frame_step": 48,
+    "fps": 14,
+    "easing": "linear"
+  },
+  "anim_boot_load": {
+    "anim_type": "flip_book",
+    "initial_uv": [
+      0,
+      0
+    ],
+    "frame_count": 8,
+    "frame_step": 128,
+    "fps": 12,
+    "easing": "linear"
+  },
+  "root": {
+    "type": "panel",
+    "size": [
+      "100%",
+      "100%"
+    ],
+    "layer": 0,
+    "controls": [
+      {
+        "visor": {
+          "type": "panel",
+          "size": [
+            "100%",
+            "100%"
+          ],
+          "layer": 0,
+          "controls": [
+            {
+              "visor_base": {
+                "type": "image",
+                "texture": "textures/sym/hud/visor_base",
+                "bilinear": true,
+                "size": [
+                  "100%",
+                  "100%"
+                ],
+                "keep_ratio": false,
+                "fill": true,
+                "layer": 0,
+                "bindings": [
+                  {
+                    "binding_name": "#hud_title_text_string",
+                    "binding_type": "global"
+                  },
+                  {
+                    "binding_type": "view",
+                    "source_property_name": "((('%.5s' * #hud_title_text_string) = 'MK5H1') or (('%.5s' * #hud_title_text_string) = 'MK5H2'))",
+                    "target_property_name": "#visible"
+                  }
+                ]
+              }
+            },
+            {
+              "visor_base_fail": {
+                "type": "image",
+                "texture": "textures/sym/hud/visor_base_fail",
+                "bilinear": true,
+                "size": [
+                  "100%",
+                  "100%"
+                ],
+                "keep_ratio": false,
+                "fill": true,
+                "layer": 0,
+                "anims": [
+                  "@sym_mk5_hud.anim_pulse_out"
+                ],
+                "bindings": [
+                  {
+                    "binding_name": "#hud_title_text_string",
+                    "binding_type": "global"
+                  },
+                  {
+                    "binding_type": "view",
+                    "source_property_name": "(('%.5s' * #hud_title_text_string) = 'MK5H3')",
+                    "target_property_name": "#visible"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "danger": {
+          "type": "image",
+          "texture": "textures/sym/hud/danger_edge",
+          "bilinear": true,
+          "size": [
+            "100%",
+            "100%"
+          ],
+          "keep_ratio": false,
+          "fill": true,
+          "layer": 0,
+          "anims": [
+            "@sym_mk5_hud.anim_pulse_out"
+          ],
+          "bindings": [
+            {
+              "binding_name": "#hud_title_text_string",
+              "binding_type": "global"
+            },
+            {
+              "binding_type": "view",
+              "source_property_name": "((('%.5s' * #hud_title_text_string) = 'MK5H1') and (((('%.29s' * #hud_title_text_string) - ('%.28s' * #hud_title_text_string)) = '1') or ((('%.11s' * #hud_title_text_string) - ('%.10s' * #hud_title_text_string)) = 'c')))",
+              "target_property_name": "#visible"
+            }
+          ]
+        }
+      },
+      {
+        "main": {
+          "type": "panel",
+          "size": [
+            "100%",
+            "100%"
+          ],
+          "layer": 5,
+          "controls": [
+            {
+              "left_column": {
+                "type": "stack_panel",
+                "orientation": "vertical",
+                "size": [
+                  152,
+                  126
+                ],
+                "anchor_from": "top_left",
+                "anchor_to": "top_left",
+                "offset": [
+                  4,
+                  "15% + 4px"
+                ],
+                "layer": 2,
+                "controls": [
+                  {
+                    "suit_panel": {
+                      "type": "image",
+                      "texture": "textures/sym/hud/panel_suit",
+                      "bilinear": true,
+                      "size": [
+                        152,
+                        86
+                      ],
+                      "anchor_from": "top_left",
+                      "anchor_to": "top_left",
+                      "layer": 1,
+                      "controls": [
+                        {
+                          "title": {
+                            "type": "label",
+                            "text": "§lMARK V",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              6,
+                              2
+                            ],
+                            "font_scale_factor": 0.75,
+                            "color": [
+                              0.25,
+                              0.85,
+                              1
+                            ],
+                            "layer": 2
+                          }
+                        },
+                        {
+                          "os": {
+                            "type": "label",
+                            "text": "SYM OS 2.0",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_right",
+                            "anchor_to": "top_right",
+                            "offset": [
+                              -17,
+                              2.5
+                            ],
+                            "font_scale_factor": 0.5,
+                            "color": [
+                              0.42,
+                              0.7,
+                              0.82
+                            ],
+                            "layer": 2
+                          }
+                        },
+                        {
+                          "viewport": {
+                            "type": "image",
+                            "texture": "textures/sym/hud/armor_viewport",
+                            "bilinear": true,
+                            "size": [
+                              46,
+                              70
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              3,
+                              12
+                            ],
+                            "layer": 1,
+                            "controls": [
+                              {
+                                "doll": {
+                                  "type": "panel",
+                                  "size": [
+                                    27,
+                                    27
+                                  ],
+                                  "anchor_from": "center",
+                                  "anchor_to": "center",
+                                  "offset": [
+                                    0,
+                                    -12
+                                  ],
+                                  "layer": 2,
+                                  "controls": [
+                                    {
+                                      "armor_model": {
+                                        "type": "custom",
+                                        "renderer": "live_player_renderer",
+                                        "layer": 2,
+                                        "anchor_from": "center",
+                                        "anchor_to": "center",
+                                        "property_bag": {
+                                          "#look_at_cursor": false
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "scanbar": {
+                                  "type": "image",
+                                  "texture": "textures/sym/hud/armor_scanbar",
+                                  "bilinear": true,
+                                  "size": [
+                                    46,
+                                    6
+                                  ],
+                                  "anchor_from": "top_left",
+                                  "anchor_to": "top_left",
+                                  "offset": [
+                                    0,
+                                    2
+                                  ],
+                                  "alpha": 0.6,
+                                  "layer": 4,
+                                  "anims": [
+                                    "@sym_mk5_hud.anim_armor_scan"
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "integrity_caption": {
+                            "type": "label",
+                            "text": "RESISTÊNCIA",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              53,
+                              13
+                            ],
+                            "font_scale_factor": 0.5,
+                            "color": [
+                              0.42,
+                              0.7,
+                              0.82
+                            ],
+                            "layer": 2
+                          }
+                        },
+                        {
+                          "integrity_pct_n": {
+                            "type": "label",
+                            "text": "#text",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "font_scale_factor": 1.5,
+                            "color": [
+                              0.25,
+                              0.85,
+                              1
+                            ],
+                            "layer": 3,
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              53,
+                              19.5
+                            ],
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "(((('_' + ((('_' + (('%.1224s' * #hud_title_text_string) - ('%.1221s' * #hud_title_text_string))) - '_0') - '_')) - '_0') - '_') + '%')",
+                                "target_property_name": "#text"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "((not ((('%.1225s' * #hud_title_text_string) - ('%.1224s' * #hud_title_text_string)) = 'w')) and (not ((('%.1225s' * #hud_title_text_string) - ('%.1224s' * #hud_title_text_string)) = 'c')))",
+                                "target_property_name": "#visible"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "integrity_pct_w": {
+                            "type": "label",
+                            "text": "#text",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "font_scale_factor": 1.5,
+                            "color": [
+                              1,
+                              0.72,
+                              0.25
+                            ],
+                            "layer": 3,
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              53,
+                              19.5
+                            ],
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "(((('_' + ((('_' + (('%.1224s' * #hud_title_text_string) - ('%.1221s' * #hud_title_text_string))) - '_0') - '_')) - '_0') - '_') + '%')",
+                                "target_property_name": "#text"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "((('%.1225s' * #hud_title_text_string) - ('%.1224s' * #hud_title_text_string)) = 'w')",
+                                "target_property_name": "#visible"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "integrity_pct_c": {
+                            "type": "label",
+                            "text": "#text",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "font_scale_factor": 1.5,
+                            "color": [
+                              1,
+                              0.32,
+                              0.3
+                            ],
+                            "layer": 3,
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              53,
+                              19.5
+                            ],
+                            "anims": [
+                              "@sym_mk5_hud.anim_blink_out"
+                            ],
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "(((('_' + ((('_' + (('%.1224s' * #hud_title_text_string) - ('%.1221s' * #hud_title_text_string))) - '_0') - '_')) - '_0') - '_') + '%')",
+                                "target_property_name": "#text"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "((('%.1225s' * #hud_title_text_string) - ('%.1224s' * #hud_title_text_string)) = 'c')",
+                                "target_property_name": "#visible"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "integrity_crit": {
+                            "type": "panel",
+                            "size": [
+                              54,
+                              10
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              94,
+                              21
+                            ],
+                            "layer": 3,
+                            "controls": [
+                              {
+                                "plate": {
+                                  "type": "image",
+                                  "texture": "textures/sym/hud/armor_crit_tag",
+                                  "bilinear": true,
+                                  "size": [
+                                    54,
+                                    10
+                                  ],
+                                  "layer": 1,
+                                  "anims": [
+                                    "@sym_mk5_hud.anim_blink_out"
+                                  ]
+                                }
+                              },
+                              {
+                                "label": {
+                                  "type": "label",
+                                  "text": "ARMADURA CRÍTICA",
+                                  "localize": false,
+                                  "shadow": true,
+                                  "font_type": "default",
+                                  "anchor_from": "center",
+                                  "anchor_to": "center",
+                                  "offset": [
+                                    0,
+                                    0.5
+                                  ],
+                                  "text_alignment": "center",
+                                  "font_scale_factor": 0.5,
+                                  "color": [
+                                    0.95,
+                                    0.98,
+                                    1
+                                  ],
+                                  "layer": 2,
+                                  "anims": [
+                                    "@sym_mk5_hud.anim_blink_out"
+                                  ]
+                                }
+                              }
+                            ],
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "((('%.1225s' * #hud_title_text_string) - ('%.1224s' * #hud_title_text_string)) = 'c')",
+                                "target_property_name": "#visible"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "integrity": {
+                            "type": "image",
+                            "texture": "#texture",
+                            "allow_debug_missing_texture": false,
+                            "bilinear": true,
+                            "property_bag": {
+                              "#texture": "textures/sym/hud/integrity_10"
+                            },
+                            "size": [
+                              92,
+                              5
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              53,
+                              35
+                            ],
+                            "layer": 2,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "('textures/sym/hud/integrity_' + (('%.13s' * #hud_title_text_string) - ('%.11s' * #hud_title_text_string)))",
+                                "target_property_name": "#texture"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "led_head": {
+                            "type": "image",
+                            "texture": "#texture",
+                            "allow_debug_missing_texture": false,
+                            "bilinear": true,
+                            "property_bag": {
+                              "#texture": "textures/sym/hud/led_1"
+                            },
+                            "size": [
+                              7,
+                              7
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              53,
+                              44
+                            ],
+                            "layer": 2,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "('textures/sym/hud/led_' + (('%.24s' * #hud_title_text_string) - ('%.23s' * #hud_title_text_string)))",
+                                "target_property_name": "#texture"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "led_head_label": {
+                            "type": "label",
+                            "text": "OLHOS",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              62,
+                              45.5
+                            ],
+                            "font_scale_factor": 0.55,
+                            "color": [
+                              0.42,
+                              0.7,
+                              0.82
+                            ],
+                            "layer": 2
+                          }
+                        },
+                        {
+                          "led_chest": {
+                            "type": "image",
+                            "texture": "#texture",
+                            "allow_debug_missing_texture": false,
+                            "bilinear": true,
+                            "property_bag": {
+                              "#texture": "textures/sym/hud/led_1"
+                            },
+                            "size": [
+                              7,
+                              7
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              100,
+                              44
+                            ],
+                            "layer": 2,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "('textures/sym/hud/led_' + (('%.25s' * #hud_title_text_string) - ('%.24s' * #hud_title_text_string)))",
+                                "target_property_name": "#texture"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "led_chest_label": {
+                            "type": "label",
+                            "text": "REATOR",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              109,
+                              45.5
+                            ],
+                            "font_scale_factor": 0.55,
+                            "color": [
+                              0.42,
+                              0.7,
+                              0.82
+                            ],
+                            "layer": 2
+                          }
+                        },
+                        {
+                          "led_arms": {
+                            "type": "image",
+                            "texture": "#texture",
+                            "allow_debug_missing_texture": false,
+                            "bilinear": true,
+                            "property_bag": {
+                              "#texture": "textures/sym/hud/led_1"
+                            },
+                            "size": [
+                              7,
+                              7
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              53,
+                              53
+                            ],
+                            "layer": 2,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "('textures/sym/hud/led_' + (('%.26s' * #hud_title_text_string) - ('%.25s' * #hud_title_text_string)))",
+                                "target_property_name": "#texture"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "led_arms_label": {
+                            "type": "label",
+                            "text": "BRAÇOS",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              62,
+                              54.5
+                            ],
+                            "font_scale_factor": 0.55,
+                            "color": [
+                              0.42,
+                              0.7,
+                              0.82
+                            ],
+                            "layer": 2
+                          }
+                        },
+                        {
+                          "led_legs": {
+                            "type": "image",
+                            "texture": "#texture",
+                            "allow_debug_missing_texture": false,
+                            "bilinear": true,
+                            "property_bag": {
+                              "#texture": "textures/sym/hud/led_1"
+                            },
+                            "size": [
+                              7,
+                              7
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              100,
+                              53
+                            ],
+                            "layer": 2,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "('textures/sym/hud/led_' + (('%.27s' * #hud_title_text_string) - ('%.26s' * #hud_title_text_string)))",
+                                "target_property_name": "#texture"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "led_legs_label": {
+                            "type": "label",
+                            "text": "PERNAS",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              109,
+                              54.5
+                            ],
+                            "font_scale_factor": 0.55,
+                            "color": [
+                              0.42,
+                              0.7,
+                              0.82
+                            ],
+                            "layer": 2
+                          }
+                        },
+                        {
+                          "suit_text": {
+                            "type": "label",
+                            "text": "#text",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              53,
+                              63
+                            ],
+                            "size": [
+                              96,
+                              "default"
+                            ],
+                            "font_scale_factor": 0.6,
+                            "color": [
+                              0.78,
+                              0.95,
+                              1
+                            ],
+                            "layer": 2,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "(('%.245s' * #hud_title_text_string) - ('%.173s' * #hud_title_text_string))",
+                                "target_property_name": "#text"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "gap_a": {
+                      "type": "panel",
+                      "size": [
+                        152,
+                        2
+                      ]
+                    }
+                  },
+                  {
+                    "energy_panel": {
+                      "type": "image",
+                      "texture": "textures/sym/hud/panel_energy",
+                      "bilinear": true,
+                      "size": [
+                        152,
+                        38
+                      ],
+                      "anchor_from": "top_left",
+                      "anchor_to": "top_left",
+                      "layer": 1,
+                      "controls": [
+                        {
+                          "ring": {
+                            "type": "image",
+                            "texture": "#texture",
+                            "allow_debug_missing_texture": false,
+                            "bilinear": true,
+                            "property_bag": {
+                              "#texture": "textures/sym/hud/energy_ring_n"
+                            },
+                            "size": [
+                              36,
+                              36
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              2,
+                              1
+                            ],
+                            "layer": 2,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "('textures/sym/hud/energy_ring_' + (('%.11s' * #hud_title_text_string) - ('%.10s' * #hud_title_text_string)))",
+                                "target_property_name": "#texture"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "gauge": {
+                            "type": "image",
+                            "texture": "#texture",
+                            "allow_debug_missing_texture": false,
+                            "bilinear": true,
+                            "property_bag": {
+                              "#texture": "textures/sym/hud/energy_20"
+                            },
+                            "size": [
+                              36,
+                              36
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              2,
+                              1
+                            ],
+                            "layer": 3,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "('textures/sym/hud/energy_' + (('%.10s' * #hud_title_text_string) - ('%.8s' * #hud_title_text_string)))",
+                                "target_property_name": "#texture"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "pulse": {
+                            "type": "image",
+                            "texture": "textures/sym/hud/energy_pulse",
+                            "bilinear": true,
+                            "size": [
+                              46,
+                              46
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              -3,
+                              -4
+                            ],
+                            "layer": 4,
+                            "anims": [
+                              "@sym_mk5_hud.anim_blink_out"
+                            ],
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "((('%.11s' * #hud_title_text_string) - ('%.10s' * #hud_title_text_string)) = 'c')",
+                                "target_property_name": "#visible"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "caption": {
+                            "type": "label",
+                            "text": "ENERGIA • REATOR ARC",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              42,
+                              5
+                            ],
+                            "font_scale_factor": 0.5,
+                            "color": [
+                              0.42,
+                              0.7,
+                              0.82
+                            ],
+                            "layer": 2
+                          }
+                        },
+                        {
+                          "energy_text": {
+                            "type": "label",
+                            "text": "#text",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              42,
+                              14
+                            ],
+                            "font_scale_factor": 1,
+                            "color": [
+                              0.78,
+                              0.95,
+                              1
+                            ],
+                            "layer": 2,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "(('%.173s' * #hud_title_text_string) - ('%.141s' * #hud_title_text_string))",
+                                "target_property_name": "#text"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "top_center": {
+                "type": "panel",
+                "size": [
+                  "100%",
+                  "100%"
+                ],
+                "layer": 2,
+                "controls": [
+                  {
+                    "compass_box": {
+                      "type": "panel",
+                      "size": [
+                        150,
+                        12
+                      ],
+                      "anchor_from": "top_middle",
+                      "anchor_to": "top_middle",
+                      "offset": [
+                        0,
+                        0
+                      ],
+                      "controls": [
+                        {
+                          "compass_notch": {
+                            "type": "image",
+                            "texture": "textures/sym/hud/compass_notch",
+                            "bilinear": true,
+                            "size": [
+                              150,
+                              12
+                            ],
+                            "layer": 1
+                          }
+                        },
+                        {
+                          "compass": {
+                            "type": "label",
+                            "text": "#text",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              19.125,
+                              2.5
+                            ],
+                            "font_scale_factor": 0.75,
+                            "color": [
+                              0.25,
+                              0.85,
+                              1
+                            ],
+                            "layer": 2,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "(('%.93s' * #hud_title_text_string) - ('%.29s' * #hud_title_text_string))",
+                                "target_property_name": "#text"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "alert_box": {
+                      "type": "panel",
+                      "size": [
+                        204,
+                        15
+                      ],
+                      "anchor_from": "top_middle",
+                      "anchor_to": "top_middle",
+                      "offset": [
+                        0,
+                        "16.5% + 3px"
+                      ],
+                      "controls": [
+                        {
+                          "alert_banner": {
+                            "type": "image",
+                            "texture": "#texture",
+                            "allow_debug_missing_texture": false,
+                            "bilinear": true,
+                            "property_bag": {
+                              "#texture": "textures/sym/hud/alert_i"
+                            },
+                            "size": [
+                              204,
+                              15
+                            ],
+                            "layer": 1,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "('textures/sym/hud/alert_' + (('%.23s' * #hud_title_text_string) - ('%.22s' * #hud_title_text_string)))",
+                                "target_property_name": "#texture"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "alert_flash": {
+                            "type": "image",
+                            "texture": "textures/sym/hud/alert_flash",
+                            "bilinear": true,
+                            "size": [
+                              204,
+                              15
+                            ],
+                            "layer": 2,
+                            "anims": [
+                              "@sym_mk5_hud.anim_blink_out"
+                            ],
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "((('%.23s' * #hud_title_text_string) - ('%.22s' * #hud_title_text_string)) = 'c')",
+                                "target_property_name": "#visible"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "alert_text": {
+                            "type": "label",
+                            "text": "#text",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "left_middle",
+                            "anchor_to": "left_middle",
+                            "offset": [
+                              21,
+                              0.5
+                            ],
+                            "font_scale_factor": 0.75,
+                            "color": [
+                              0.95,
+                              0.98,
+                              1
+                            ],
+                            "layer": 3,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "(('%.1029s' * #hud_title_text_string) - ('%.965s' * #hud_title_text_string))",
+                                "target_property_name": "#text"
+                              }
+                            ]
+                          }
+                        }
+                      ],
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "(not ((('%.23s' * #hud_title_text_string) - ('%.22s' * #hud_title_text_string)) = '0'))",
+                          "target_property_name": "#visible"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "coords_text": {
+                "type": "label",
+                "text": "#text",
+                "localize": false,
+                "shadow": true,
+                "font_type": "default",
+                "anchor_from": "top_left",
+                "anchor_to": "top_left",
+                "offset": [
+                  7,
+                  5
+                ],
+                "font_scale_factor": 0.55,
+                "color": [
+                  0.42,
+                  0.7,
+                  0.82
+                ],
+                "layer": 2,
+                "bindings": [
+                  {
+                    "binding_name": "#hud_title_text_string",
+                    "binding_type": "global"
+                  },
+                  {
+                    "binding_type": "view",
+                    "source_property_name": "(('%.141s' * #hud_title_text_string) - ('%.93s' * #hud_title_text_string))",
+                    "target_property_name": "#text"
+                  }
+                ]
+              }
+            },
+            {
+              "center": {
+                "type": "panel",
+                "size": [
+                  "100%",
+                  "100%"
+                ],
+                "layer": 3,
+                "controls": [
+                  {
+                    "reticle_ring": {
+                      "type": "image",
+                      "texture": "textures/sym/hud/reticle_ring",
+                      "bilinear": true,
+                      "size": [
+                        60,
+                        60
+                      ],
+                      "uv_size": [
+                        96,
+                        96
+                      ],
+                      "uv": "@sym_mk5_hud.anim_reticle_ring",
+                      "alpha": 0.5,
+                      "layer": 1
+                    }
+                  },
+                  {
+                    "reticle": {
+                      "type": "image",
+                      "texture": "#texture",
+                      "allow_debug_missing_texture": false,
+                      "bilinear": true,
+                      "property_bag": {
+                        "#texture": "textures/sym/hud/reticle_i"
+                      },
+                      "size": [
+                        32,
+                        32
+                      ],
+                      "layer": 3,
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "('textures/sym/hud/reticle_' + (('%.14s' * #hud_title_text_string) - ('%.13s' * #hud_title_text_string)))",
+                          "target_property_name": "#texture"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "lock_ring": {
+                      "type": "image",
+                      "texture": "#texture",
+                      "allow_debug_missing_texture": false,
+                      "bilinear": true,
+                      "property_bag": {
+                        "#texture": "textures/sym/hud/lock_0"
+                      },
+                      "size": [
+                        50,
+                        50
+                      ],
+                      "layer": 4,
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "('textures/sym/hud/lock_' + (('%.15s' * #hud_title_text_string) - ('%.14s' * #hud_title_text_string)))",
+                          "target_property_name": "#texture"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "(not ((('%.15s' * #hud_title_text_string) - ('%.14s' * #hud_title_text_string)) = '0'))",
+                          "target_property_name": "#visible"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "lock_tag": {
+                      "type": "image",
+                      "texture": "textures/sym/hud/lock_tag",
+                      "bilinear": true,
+                      "size": [
+                        86,
+                        10
+                      ],
+                      "anchor_from": "center",
+                      "anchor_to": "center",
+                      "offset": [
+                        0,
+                        34
+                      ],
+                      "layer": 2,
+                      "controls": [
+                        {
+                          "lock_tag_label": {
+                            "type": "label",
+                            "text": "MIRA TELEGUIADA",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "center",
+                            "anchor_to": "center",
+                            "offset": [
+                              0,
+                              0.5
+                            ],
+                            "text_alignment": "center",
+                            "font_scale_factor": 0.55,
+                            "color": [
+                              1,
+                              0.72,
+                              0.25
+                            ],
+                            "layer": 1
+                          }
+                        }
+                      ],
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "((('%.28s' * #hud_title_text_string) - ('%.27s' * #hud_title_text_string)) = '1')",
+                          "target_property_name": "#visible"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "right_column": {
+                "type": "stack_panel",
+                "orientation": "vertical",
+                "size": [
+                  150,
+                  200
+                ],
+                "anchor_from": "top_right",
+                "anchor_to": "top_right",
+                "offset": [
+                  -4,
+                  "15% + 4px"
+                ],
+                "layer": 2,
+                "controls": [
+                  {
+                    "scan_panel": {
+                      "type": "image",
+                      "texture": "textures/sym/hud/panel_scan",
+                      "bilinear": true,
+                      "size": [
+                        150,
+                        66
+                      ],
+                      "controls": [
+                        {
+                          "radar_idle": {
+                            "type": "image",
+                            "texture": "textures/sym/hud/radar_idle",
+                            "bilinear": true,
+                            "size": [
+                              11,
+                              11
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              4,
+                              0.5
+                            ],
+                            "layer": 2,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "((('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string)) = '1')",
+                                "target_property_name": "#visible"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "radar_sweep": {
+                            "type": "image",
+                            "texture": "textures/sym/hud/radar_sweep",
+                            "bilinear": true,
+                            "size": [
+                              11,
+                              11
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              4,
+                              0.5
+                            ],
+                            "uv_size": [
+                              48,
+                              48
+                            ],
+                            "uv": "@sym_mk5_hud.anim_radar",
+                            "layer": 2,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "((('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string)) = '2')",
+                                "target_property_name": "#visible"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "caption": {
+                            "type": "label",
+                            "text": "SCANNER DE ÁREA",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              18,
+                              3
+                            ],
+                            "font_scale_factor": 0.55,
+                            "color": [
+                              0.25,
+                              0.85,
+                              1
+                            ],
+                            "layer": 2
+                          }
+                        },
+                        {
+                          "scan_text": {
+                            "type": "label",
+                            "text": "#text",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              5,
+                              14
+                            ],
+                            "size": [
+                              141,
+                              "default"
+                            ],
+                            "font_scale_factor": 0.6,
+                            "color": [
+                              0.78,
+                              0.95,
+                              1
+                            ],
+                            "layer": 2,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "(('%.965s' * #hud_title_text_string) - ('%.677s' * #hud_title_text_string))",
+                                "target_property_name": "#text"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "sweep": {
+                            "type": "image",
+                            "texture": "textures/sym/hud/scan_sweep",
+                            "bilinear": true,
+                            "size": [
+                              146,
+                              6
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              2,
+                              12
+                            ],
+                            "alpha": 0.9,
+                            "layer": 3,
+                            "anims": [
+                              "@sym_mk5_hud.anim_scan_sweep"
+                            ],
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "((('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string)) = '2')",
+                                "target_property_name": "#visible"
+                              }
+                            ]
+                          }
+                        }
+                      ],
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "(not ((('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string)) = '0'))",
+                          "target_property_name": "#visible"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "gap": {
+                      "type": "panel",
+                      "size": [
+                        150,
+                        3
+                      ],
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "((not ((('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string)) = '0')) and (not ((('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string)) = '0')))",
+                          "target_property_name": "#visible"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "target_panel": {
+                      "type": "image",
+                      "texture": "#texture",
+                      "allow_debug_missing_texture": false,
+                      "bilinear": true,
+                      "property_bag": {
+                        "#texture": "textures/sym/hud/target_frame_0"
+                      },
+                      "size": [
+                        150,
+                        54
+                      ],
+                      "controls": [
+                        {
+                          "caption": {
+                            "type": "label",
+                            "text": "ANÁLISE DE ALVO",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              7,
+                              3
+                            ],
+                            "font_scale_factor": 0.55,
+                            "color": [
+                              0.95,
+                              0.98,
+                              1
+                            ],
+                            "layer": 2
+                          }
+                        },
+                        {
+                          "target_text": {
+                            "type": "label",
+                            "text": "#text",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              6,
+                              14
+                            ],
+                            "size": [
+                              138,
+                              "default"
+                            ],
+                            "font_scale_factor": 0.65,
+                            "color": [
+                              0.95,
+                              0.98,
+                              1
+                            ],
+                            "layer": 2,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "(('%.565s' * #hud_title_text_string) - ('%.405s' * #hud_title_text_string))",
+                                "target_property_name": "#text"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "hp_bar": {
+                            "type": "image",
+                            "texture": "#texture",
+                            "allow_debug_missing_texture": false,
+                            "bilinear": true,
+                            "property_bag": {
+                              "#texture": "textures/sym/hud/hp_0_00"
+                            },
+                            "size": [
+                              138,
+                              5
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              6,
+                              45
+                            ],
+                            "layer": 2,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "('textures/sym/hud/hp_' + (((('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string)) + '_') + (('%.18s' * #hud_title_text_string) - ('%.16s' * #hud_title_text_string))))",
+                                "target_property_name": "#texture"
+                              }
+                            ]
+                          }
+                        }
+                      ],
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "('textures/sym/hud/target_frame_' + (('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string)))",
+                          "target_property_name": "#texture"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "(not ((('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string)) = '0'))",
+                          "target_property_name": "#visible"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "systems_panel": {
+                      "type": "image",
+                      "texture": "textures/sym/hud/panel_systems",
+                      "bilinear": true,
+                      "size": [
+                        150,
+                        50
+                      ],
+                      "layer": 1,
+                      "controls": [
+                        {
+                          "caption": {
+                            "type": "label",
+                            "text": "SISTEMAS",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              6,
+                              1.5
+                            ],
+                            "font_scale_factor": 0.5,
+                            "color": [
+                              0.42,
+                              0.7,
+                              0.82
+                            ],
+                            "layer": 2
+                          }
+                        },
+                        {
+                          "systems_text": {
+                            "type": "label",
+                            "text": "#text",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              5,
+                              10
+                            ],
+                            "size": [
+                              142,
+                              "default"
+                            ],
+                            "font_scale_factor": 0.6,
+                            "color": [
+                              0.78,
+                              0.95,
+                              1
+                            ],
+                            "layer": 2,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "(('%.405s' * #hud_title_text_string) - ('%.245s' * #hud_title_text_string))",
+                                "target_property_name": "#text"
+                              }
+                            ]
+                          }
+                        }
+                      ],
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "(((('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string)) = '0') and ((('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string)) = '0'))",
+                          "target_property_name": "#visible"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "flight_panel": {
+                "type": "image",
+                "texture": "textures/sym/hud/panel_flight",
+                "bilinear": true,
+                "size": [
+                  166,
+                  31
+                ],
+                "anchor_from": "bottom_middle",
+                "anchor_to": "bottom_middle",
+                "offset": [
+                  0,
+                  -56
+                ],
+                "layer": 2,
+                "controls": [
+                  {
+                    "badge": {
+                      "type": "image",
+                      "texture": "#texture",
+                      "allow_debug_missing_texture": false,
+                      "bilinear": true,
+                      "property_bag": {
+                        "#texture": "textures/sym/hud/flight_0"
+                      },
+                      "size": [
+                        24,
+                        24
+                      ],
+                      "anchor_from": "top_left",
+                      "anchor_to": "top_left",
+                      "offset": [
+                        4,
+                        3.5
+                      ],
+                      "layer": 2,
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "('textures/sym/hud/flight_' + (('%.19s' * #hud_title_text_string) - ('%.18s' * #hud_title_text_string)))",
+                          "target_property_name": "#texture"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "caption": {
+                      "type": "label",
+                      "text": "VOO • PROPULSORES",
+                      "localize": false,
+                      "shadow": true,
+                      "font_type": "default",
+                      "anchor_from": "top_left",
+                      "anchor_to": "top_left",
+                      "offset": [
+                        32,
+                        2.5
+                      ],
+                      "font_scale_factor": 0.5,
+                      "color": [
+                        0.42,
+                        0.7,
+                        0.82
+                      ],
+                      "layer": 2
+                    }
+                  },
+                  {
+                    "flight_text": {
+                      "type": "label",
+                      "text": "#text",
+                      "localize": false,
+                      "shadow": true,
+                      "font_type": "default",
+                      "anchor_from": "top_left",
+                      "anchor_to": "top_left",
+                      "offset": [
+                        32,
+                        9
+                      ],
+                      "size": [
+                        118,
+                        "default"
+                      ],
+                      "font_scale_factor": 0.6,
+                      "color": [
+                        0.78,
+                        0.95,
+                        1
+                      ],
+                      "layer": 2,
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "(('%.677s' * #hud_title_text_string) - ('%.565s' * #hud_title_text_string))",
+                          "target_property_name": "#text"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "thrust": {
+                      "type": "image",
+                      "texture": "#texture",
+                      "allow_debug_missing_texture": false,
+                      "bilinear": true,
+                      "property_bag": {
+                        "#texture": "textures/sym/hud/thrust_00"
+                      },
+                      "size": [
+                        8,
+                        26
+                      ],
+                      "anchor_from": "top_left",
+                      "anchor_to": "top_left",
+                      "offset": [
+                        154,
+                        2.5
+                      ],
+                      "layer": 2,
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "('textures/sym/hud/thrust_' + (('%.21s' * #hud_title_text_string) - ('%.19s' * #hud_title_text_string)))",
+                          "target_property_name": "#texture"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "bindings": [
+                  {
+                    "binding_name": "#hud_title_text_string",
+                    "binding_type": "global"
+                  },
+                  {
+                    "binding_type": "view",
+                    "source_property_name": "(not ((('%.19s' * #hud_title_text_string) - ('%.18s' * #hud_title_text_string)) = '0'))",
+                    "target_property_name": "#visible"
+                  }
+                ]
+              }
+            }
+          ],
+          "bindings": [
+            {
+              "binding_name": "#hud_title_text_string",
+              "binding_type": "global"
+            },
+            {
+              "binding_type": "view",
+              "source_property_name": "(('%.5s' * #hud_title_text_string) = 'MK5H1')",
+              "target_property_name": "#visible"
+            }
+          ]
+        }
+      },
+      {
+        "boot": {
+          "type": "panel",
+          "size": [
+            "100%",
+            "100%"
+          ],
+          "layer": 20,
+          "controls": [
+            {
+              "boot_frame": {
+                "type": "image",
+                "texture": "#texture",
+                "allow_debug_missing_texture": false,
+                "bilinear": true,
+                "property_bag": {
+                  "#texture": "textures/sym/hud/boot_frame_2"
+                },
+                "size": [
+                  230,
+                  106
+                ],
+                "anchor_from": "center",
+                "anchor_to": "center",
+                "offset": [
+                  0,
+                  -14
+                ],
+                "layer": 1,
+                "controls": [
+                  {
+                    "header_boot": {
+                      "type": "label",
+                      "text": "SYM INDUSTRIES  //  MARK V  //  SYM OS 2.0",
+                      "localize": false,
+                      "shadow": true,
+                      "font_type": "default",
+                      "anchor_from": "top_left",
+                      "anchor_to": "top_left",
+                      "offset": [
+                        9,
+                        3.5
+                      ],
+                      "font_scale_factor": 0.6,
+                      "color": [
+                        0.25,
+                        0.85,
+                        1
+                      ],
+                      "layer": 2,
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "(('%.5s' * #hud_title_text_string) = 'MK5H2')",
+                          "target_property_name": "#visible"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "header_fail": {
+                      "type": "label",
+                      "text": "§lALERTA  //  FALHA CRÍTICA DE ENERGIA",
+                      "localize": false,
+                      "shadow": true,
+                      "font_type": "default",
+                      "anchor_from": "top_left",
+                      "anchor_to": "top_left",
+                      "offset": [
+                        9,
+                        3.5
+                      ],
+                      "font_scale_factor": 0.6,
+                      "color": [
+                        1,
+                        0.32,
+                        0.3
+                      ],
+                      "layer": 2,
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "(('%.5s' * #hud_title_text_string) = 'MK5H3')",
+                          "target_property_name": "#visible"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "ring": {
+                      "type": "image",
+                      "texture": "#texture",
+                      "allow_debug_missing_texture": false,
+                      "bilinear": true,
+                      "property_bag": {
+                        "#texture": "textures/sym/hud/boot_ring_2"
+                      },
+                      "size": [
+                        26,
+                        26
+                      ],
+                      "anchor_from": "top_right",
+                      "anchor_to": "top_right",
+                      "offset": [
+                        -7,
+                        19
+                      ],
+                      "layer": 2,
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "('textures/sym/hud/boot_ring_' + (('%.5s' * #hud_title_text_string) - ('%.4s' * #hud_title_text_string)))",
+                          "target_property_name": "#texture"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "boot_text": {
+                      "type": "label",
+                      "text": "#text",
+                      "localize": false,
+                      "shadow": true,
+                      "font_type": "default",
+                      "anchor_from": "top_left",
+                      "anchor_to": "top_left",
+                      "offset": [
+                        9,
+                        19
+                      ],
+                      "size": [
+                        180,
+                        "default"
+                      ],
+                      "font_scale_factor": 0.75,
+                      "color": [
+                        0.78,
+                        0.95,
+                        1
+                      ],
+                      "layer": 2,
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "(('%.1221s' * #hud_title_text_string) - ('%.1029s' * #hud_title_text_string))",
+                          "target_property_name": "#text"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "loader": {
+                      "type": "image",
+                      "texture": "#texture",
+                      "allow_debug_missing_texture": false,
+                      "bilinear": true,
+                      "property_bag": {
+                        "#texture": "textures/sym/hud/boot_load_2"
+                      },
+                      "size": [
+                        64,
+                        5
+                      ],
+                      "anchor_from": "bottom_left",
+                      "anchor_to": "bottom_left",
+                      "offset": [
+                        9,
+                        -7
+                      ],
+                      "uv_size": [
+                        128,
+                        10
+                      ],
+                      "uv": "@sym_mk5_hud.anim_boot_load",
+                      "layer": 2,
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "('textures/sym/hud/boot_load_' + (('%.5s' * #hud_title_text_string) - ('%.4s' * #hud_title_text_string)))",
+                          "target_property_name": "#texture"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "scanline": {
+                      "type": "image",
+                      "texture": "#texture",
+                      "allow_debug_missing_texture": false,
+                      "bilinear": true,
+                      "property_bag": {
+                        "#texture": "textures/sym/hud/boot_scan_2"
+                      },
+                      "size": [
+                        226,
+                        8
+                      ],
+                      "anchor_from": "top_left",
+                      "anchor_to": "top_left",
+                      "offset": [
+                        2,
+                        3
+                      ],
+                      "alpha": 0.8,
+                      "layer": 5,
+                      "anims": [
+                        "@sym_mk5_hud.anim_boot_scan"
+                      ],
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "('textures/sym/hud/boot_scan_' + (('%.5s' * #hud_title_text_string) - ('%.4s' * #hud_title_text_string)))",
+                          "target_property_name": "#texture"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "bindings": [
+                  {
+                    "binding_name": "#hud_title_text_string",
+                    "binding_type": "global"
+                  },
+                  {
+                    "binding_type": "view",
+                    "source_property_name": "('textures/sym/hud/boot_frame_' + (('%.5s' * #hud_title_text_string) - ('%.4s' * #hud_title_text_string)))",
+                    "target_property_name": "#texture"
+                  }
+                ]
+              }
+            }
+          ],
+          "bindings": [
+            {
+              "binding_name": "#hud_title_text_string",
+              "binding_type": "global"
+            },
+            {
+              "binding_type": "view",
+              "source_property_name": "((('%.5s' * #hud_title_text_string) = 'MK5H2') or (('%.5s' * #hud_title_text_string) = 'MK5H3'))",
+              "target_property_name": "#visible"
+            }
+          ]
+        }
+      }
+    ],
+    "bindings": [
+      {
+        "binding_name": "#hud_title_text_string",
+        "binding_type": "global"
+      },
+      {
+        "binding_type": "view",
+        "source_property_name": "((('%.4s' * #hud_title_text_string) = 'MK5H') and (not (('%.5s' * #hud_title_text_string) = 'MK5H0')))",
+        "target_property_name": "#visible"
+      }
+    ]
+  }
+}

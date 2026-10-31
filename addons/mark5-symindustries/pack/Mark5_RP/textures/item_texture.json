@@ -1,0 +1,15 @@
+{
+  "resource_pack_name": "sym_mark5",
+  "texture_name": "atlas.items",
+  "texture_data": {
+    "sym_mk5_suitcase": {
+      "textures": "textures/sym/items/mk5_suitcase"
+    },
+    "sym_mk5_armor": {
+      "textures": "textures/sym/items/mk5_armor"
+    },
+    "sym_mk5_reactor": {
+      "textures": "textures/sym/items/arc_reactor"
+    }
+  }
+}

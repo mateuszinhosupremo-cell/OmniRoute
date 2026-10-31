@@ -1,0 +1,163 @@
+{
+  "format_version": "1.8.0",
+  "render_controllers": {
+    "controller.render.player.first_person": {
+      "geometry": "Geometry.sym_tony",
+      "materials": [
+        {
+          "*": "Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.sym_tony"
+      ],
+      "part_visibility": [
+        {
+          "*": false
+        },
+        {
+          "rightArm": "(query.get_equipped_item_name(0, 1) == '' || query.get_equipped_item_name(0, 1) == 'filled_map') && !(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2', 'sym:mark_5_assembling_2', 'sym:mark_5_disassembling_3'))"
+        },
+        {
+          "rightSleeve": "(query.get_equipped_item_name(0, 1) == '' || query.get_equipped_item_name(0, 1) == 'filled_map') && !(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2', 'sym:mark_5_assembling_2', 'sym:mark_5_disassembling_3'))"
+        },
+        {
+          "leftArm": "((query.get_equipped_item_name(0, 1) == 'filled_map' && query.get_equipped_item_name('off_hand') != 'shield') || (query.get_equipped_item_name('off_hand') == 'filled_map' && !query.item_is_charged) || (!query.item_is_charged && (variable.item_use_normalized > 0 && variable.item_use_normalized < 1.0))) && !(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2', 'sym:mark_5_assembling_2', 'sym:mark_5_disassembling_3'))"
+        },
+        {
+          "leftSleeve": "((query.get_equipped_item_name(0, 1) == 'filled_map' && query.get_equipped_item_name('off_hand') != 'shield') || (query.get_equipped_item_name('off_hand') == 'filled_map' && !query.item_is_charged) || (!query.item_is_charged && (variable.item_use_normalized > 0 && variable.item_use_normalized < 1.0))) && !(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2', 'sym:mark_5_assembling_2', 'sym:mark_5_disassembling_3'))"
+        }
+      ]
+    },
+    "controller.render.player.sym_mk5_first_person": {
+      "geometry": "Geometry.sym_tony",
+      "materials": [
+        {
+          "*": "Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.sym_mk5"
+      ],
+      "part_visibility": [
+        {
+          "*": false
+        },
+        {
+          "rightArm": "(query.get_equipped_item_name(0, 1) == '' || query.get_equipped_item_name(0, 1) == 'filled_map') && (query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2', 'sym:mark_5_assembling_2', 'sym:mark_5_disassembling_3'))"
+        },
+        {
+          "leftArm": "((query.get_equipped_item_name(0, 1) == 'filled_map' && query.get_equipped_item_name('off_hand') != 'shield') || (query.get_equipped_item_name('off_hand') == 'filled_map' && !query.item_is_charged) || (!query.item_is_charged && (variable.item_use_normalized > 0 && variable.item_use_normalized < 1.0))) && (query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2', 'sym:mark_5_assembling_2', 'sym:mark_5_disassembling_3'))"
+        }
+      ]
+    },
+    "controller.render.player.third_person": {
+      "geometry": "Geometry.sym_tony",
+      "materials": [
+        {
+          "*": "Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.sym_tony"
+      ],
+      "part_visibility": [
+        {
+          "*": false
+        },
+        {
+          "head": "!(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_assembling_4') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_1'))"
+        },
+        {
+          "hat": "!(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2', 'sym:mark_5_assembling_2', 'sym:mark_5_disassembling_3'))"
+        },
+        {
+          "body": "!(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2', 'sym:mark_5_assembling_2', 'sym:mark_5_disassembling_3'))"
+        },
+        {
+          "jacket": "!(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2', 'sym:mark_5_assembling_2', 'sym:mark_5_disassembling_3'))"
+        },
+        {
+          "rightArm": "!(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2', 'sym:mark_5_assembling_2', 'sym:mark_5_disassembling_3'))"
+        },
+        {
+          "rightSleeve": "!(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2', 'sym:mark_5_assembling_2', 'sym:mark_5_disassembling_3'))"
+        },
+        {
+          "leftArm": "!(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2', 'sym:mark_5_assembling_2', 'sym:mark_5_disassembling_3'))"
+        },
+        {
+          "leftSleeve": "!(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2', 'sym:mark_5_assembling_2', 'sym:mark_5_disassembling_3'))"
+        },
+        {
+          "rightLeg": "!(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2'))"
+        },
+        {
+          "leftLeg": "!(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2'))"
+        },
+        {
+          "rightPants": "!(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2', 'sym:mark_5_assembling_2', 'sym:mark_5_disassembling_3'))"
+        },
+        {
+          "leftPants": "!(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2', 'sym:mark_5_assembling_2', 'sym:mark_5_disassembling_3'))"
+        }
+      ]
+    },
+    "controller.render.player.sym_mk5_third_person": {
+      "geometry": "Geometry.sym_tony",
+      "materials": [
+        {
+          "*": "Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.sym_mk5"
+      ],
+      "part_visibility": [
+        {
+          "*": false
+        },
+        {
+          "head": "(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_assembling_4') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_1'))"
+        },
+        {
+          "body": "(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2', 'sym:mark_5_assembling_2', 'sym:mark_5_disassembling_3'))"
+        },
+        {
+          "rightArm": "(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2', 'sym:mark_5_assembling_2', 'sym:mark_5_disassembling_3'))"
+        },
+        {
+          "leftArm": "(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2', 'sym:mark_5_assembling_2', 'sym:mark_5_disassembling_3'))"
+        },
+        {
+          "rightLeg": "(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2'))"
+        },
+        {
+          "leftLeg": "(query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1', 'sym:mark_5_assembling_3') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_disassembling_2'))"
+        }
+      ]
+    },
+    "controller.render.player.map": {
+      "geometry": "Geometry.sym_tony",
+      "materials": [
+        {
+          "*": "Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.sym_tony"
+      ],
+      "part_visibility": [
+        {
+          "*": false
+        },
+        {
+          "head": true
+        },
+        {
+          "hat": true
+        }
+      ]
+    }
+  }
+}

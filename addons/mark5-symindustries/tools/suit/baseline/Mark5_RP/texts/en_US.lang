@@ -1,0 +1,6 @@
+pack.name=Mark V — Sym Industries
+pack.description=Maleta Mark V com montagem cinematográfica da armadura
+entity.sym:mk5_case.name=Maleta Mark V
+item.sym:mark_5_suitcase=Maleta Mark V
+item.sym:mark_5=Armadura Mark V
+item.sym:mark_5_reactor=Reator Arc (desmontar Mark V)
