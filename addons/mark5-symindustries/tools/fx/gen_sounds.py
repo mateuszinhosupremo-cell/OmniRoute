@@ -617,6 +617,27 @@ def snd_menu(rng):
     return fade(dc_block(out), 0.001, 0.01), -1.0
 
 
+def snd_night_vision(rng):
+    """Optical night-vision engaging: soft rising servo whirr + a small lens click (0.4 s)."""
+    dur = 0.4
+    n = n_of(dur)
+    # servo whirr: a resonant tone sweeping up with a little motor flutter
+    f = sweep_exp(430.0, 1480.0, n, 1.25)
+    whirr = np.sin(phase(f, n)) + 0.18 * np.sin(phase(f * 2.0, n)) + 0.07 * np.sin(phase(f * 3.0, n))
+    whirr *= 0.86 + 0.14 * np.sin(phase(np.full(n, 57.0), n))
+    whirr *= env_lin(n, [(0, 0.0), (0.05, 0.85), (0.26, 1.0), (0.33, 0.2), (0.4, 0.0)])
+    # iris air: a breathy band of noise following the same sweep
+    air = biquad(noise(n, rng), "bp", sweep_exp(1200.0, 3400.0, n), 1.1)
+    air *= env_lin(n, [(0, 0.0), (0.07, 1.0), (0.3, 0.7), (0.4, 0.0)]) * 0.5
+    out = biquad(whirr * 0.55 + air * 0.35, "lp", 5200.0, 0.8)
+    # lens click: tiny transient + a high tick, right at the end of the sweep
+    place(out, blip(0.05, 2700, 1900, tau=0.012, amps=(1.0, 0.45, 0.15), attack=0.0006) * 0.5, 0.292)
+    place(out, biquad(noise(n_of(0.02), rng), "hp", 3800.0, 0.8) * env_exp(n_of(0.02), 0.004, attack=0.0004) * 0.3,
+          0.292)
+    out = reverb(out, 0.14, 0.45)
+    return fade(dc_block(out), 0.004, 0.04), -3.0
+
+
 # id -> (file stem, renderer, extra definition fields)
 WORLD = {"min_distance": 4.0, "max_distance": 48.0}
 SOUNDS = {
@@ -639,6 +660,7 @@ SOUNDS = {
     "sym.mk5.landing": ("landing", snd_landing, {"min_distance": 4.0, "max_distance": 40.0}),
     "sym.mk5.shield": ("shield", snd_shield, {}),
     "sym.mk5.menu": ("menu", snd_menu, {}),
+    "sym.mk5.night_vision": ("night_vision", snd_night_vision, {}),
 }
 
 EXPECTED_DUR = {
@@ -646,6 +668,7 @@ EXPECTED_DUR = {
     "scan_ping": 0.15, "lock_tick": 0.08, "lock_on": 0.6, "lock_lost": 0.3, "target": 0.1,
     "thruster_start": 1.0, "thruster_loop": 1.0, "thruster_boost": 1.0, "thruster_stop": 0.8,
     "sonic_boom": 1.5, "landing": 0.8, "shield": 0.4, "menu": 0.2,
+    "night_vision": 0.4,
 }
 
 

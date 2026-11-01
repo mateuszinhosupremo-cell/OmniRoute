@@ -59,7 +59,13 @@ NOT_MOLANG_KEYS = {"facing_camera_mode", "plane_normal", "mode", "creation_event
 SPEC_PARTICLES = ["sym:mk5_thrust", "sym:mk5_thrust_glow", "sym:mk5_smoke", "sym:mk5_boom", "sym:mk5_takeoff",
                   "sym:mk5_landing", "sym:mk5_scan_wave", "sym:mk5_scan_dome", "sym:mk5_mark", "sym:mk5_lock",
                   "sym:mk5_power_down", "sym:mk5_power_up", "sym:mk5_shield_hit", "sym:mk5_spark",
-                  "sym:mk5_power_burst"]
+                  "sym:mk5_power_burst", "sym:mk5_trail"]
+
+# SPEC 12.4 "clean" look: these trees may only use the hard-edged atlas cells (no smoke / fire
+# noise sprites), and must stay inside a sprite budget — that is what stops the effects drifting
+# back to the muddy random-smoke style the user rejected.
+CLEAN_CELLS = {"ring_crisp", "ring_dust", "burst", "streak", "chunk", "dot", "puff"}
+CLEAN_BUDGET = {"sym:mk5_takeoff": 20, "sym:mk5_landing": 22, "sym:mk5_boom": 14, "sym:mk5_trail": 8}
 
 SCRIPT_VARS = [
     {},  # nothing passed: every input must have an in-file default
@@ -257,7 +263,78 @@ def check_particles():
                 check(False, f"{name}: vars#{i}: {p}")
     for sid in SPEC_PARTICLES:
         check(sid in ids, f"missing SPEC particle {sid}")
+    check_clean(ids)
+    check_trail(ids)
     return len(ids)
+
+
+def cell_of(uvd, cells):
+    """Name of the atlas cell a billboard uv rect points at (flipbooks use base_UV)."""
+    fb = uvd.get("flipbook")
+    uv = fb["base_UV"] if fb else uvd["uv"]
+    size = fb["size_UV"] if fb else uvd["uv_size"]
+    try:
+        rect = (float(evaluate(uv[0], Ctx({"variable.particle_random_3": 0.0}))), float(evaluate(uv[1], Ctx())),
+                float(evaluate(size[0], Ctx())), float(evaluate(size[1], Ctx())))
+    except MolangError:
+        return "?"
+    for name, r in cells.items():
+        if tuple(float(v) for v in r) == rect:
+            return name
+    return f"?{rect}"
+
+
+def sprite_count(comp):
+    inst = comp.get("minecraft:emitter_rate_instant")
+    if inst is not None:
+        try:
+            return max(evaluate(inst.get("num_particles", 1), Ctx()) for _ in range(1))
+        except MolangError:
+            return 0
+    steady = comp.get("minecraft:emitter_rate_steady")
+    if steady is not None:
+        active = float(comp.get("minecraft:emitter_lifetime_once", {}).get("active_time", 0.05))
+        return min(float(steady.get("max_particles", 1)), float(steady.get("spawn_rate", 1)) * active)
+    return 0
+
+
+def check_clean(ids):
+    from gen_particle_textures import ATLAS  # also asserts that no two atlas cells overlap
+    for root, budget in CLEAN_BUDGET.items():
+        if root not in ids:
+            continue
+        seen, queue, total = set(), [root], 0
+        while queue:
+            ident = queue.pop()
+            if ident in seen or ident not in ids:
+                continue
+            seen.add(ident)
+            name, pe = ids[ident]
+            comp = pe["components"]
+            total += sprite_count(comp)
+            cell = cell_of(comp["minecraft:particle_appearance_billboard"]["uv"], ATLAS)
+            check(cell in CLEAN_CELLS, f"{name}: SPEC 12.4 clean look: sprite cell {cell} not in {CLEAN_CELLS}")
+            for ev in pe.get("events", {}).values():
+                queue.append(ev.get("particle_effect", {}).get("effect"))
+        check(total <= budget, f"{root}: {total} sprites > clean budget {budget}")
+
+
+def check_trail(ids):
+    """SPEC 12.4 contrail: additive, ~0.25 s, and usable with no script variables at all."""
+    if "sym:mk5_trail" not in ids:
+        return
+    name, pe = ids["sym:mk5_trail"]
+    comp = pe["components"]
+    check(pe["description"]["basic_render_parameters"]["material"] == "particles_add", f"{name}: not additive")
+    init = comp.get("minecraft:emitter_initialization", {}).get("creation_expression", "")
+    for v in ("variable.dir", "variable.vel"):
+        check(f"{v} ??" in init, f"{name}: {v} has no in-file default")
+    life = comp["minecraft:particle_lifetime_expression"]["max_lifetime"]
+    for r2 in (0.0, 1.0):
+        d = evaluate(life, Ctx({"variable.particle_random_2": r2}))
+        check(0.12 <= d <= 0.3, f"{name}: lifetime {d}s outside 0.12..0.30 s")
+    off = comp["minecraft:emitter_shape_custom"]["offset"]
+    check(all("variable.dir" in e for e in off), f"{name}: segment is not laid out along variable.dir")
 
 
 ORIGINAL_SOUNDS = {
@@ -275,7 +352,7 @@ SPEC_SOUNDS = {  # id -> (file stem, nominal duration s)
     "sym.mk5.thruster_start": ("thruster_start", 1.0), "sym.mk5.thruster_loop": ("thruster_loop", 1.0),
     "sym.mk5.thruster_boost": ("thruster_boost", 1.0), "sym.mk5.thruster_stop": ("thruster_stop", 0.8),
     "sym.mk5.sonic_boom": ("sonic_boom", 1.5), "sym.mk5.landing": ("landing", 0.8), "sym.mk5.shield": ("shield", 0.4),
-    "sym.mk5.menu": ("menu", 0.2),
+    "sym.mk5.menu": ("menu", 0.2), "sym.mk5.night_vision": ("night_vision", 0.4),
 }
 WORLD_SOUNDS = {"sym.mk5.thruster_start", "sym.mk5.thruster_loop", "sym.mk5.thruster_boost",
                 "sym.mk5.thruster_stop", "sym.mk5.sonic_boom", "sym.mk5.landing"}

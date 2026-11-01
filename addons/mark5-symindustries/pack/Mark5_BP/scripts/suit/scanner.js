@@ -17,8 +17,8 @@ import {
   scanOrder,
   threatLevel,
 } from "./mobs.js";
-import { actionbar, molang, playerParticle, playerSound, quiet, worldParticle, worldSound } from "./fx.js";
-import { pushAlert } from "./hud.js";
+import { molang, playerParticle, playerSound, quiet, worldParticle, worldSound } from "./fx.js";
+import { notify, pushAlert } from "./hud.js";
 import { spendEnergy } from "./state.js";
 import { scanText, targetText } from "./texts.js";
 
@@ -231,7 +231,7 @@ export function scanBlocker(st, tick) {
 export function startScan(player, st, tick) {
   const why = scanBlocker(st, tick);
   if (why) {
-    actionbar(player, why);
+    notify(player, st, why);
     return false;
   }
   if (!spendEnergy(st, T.SCAN_COST)) return false;

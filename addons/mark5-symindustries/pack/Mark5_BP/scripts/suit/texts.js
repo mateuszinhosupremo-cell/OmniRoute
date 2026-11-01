@@ -73,11 +73,17 @@ export function oneShotAlert(key, cost) {
   return utf8Truncate(`-${costPct(cost)}% ${key}`, W.alert);
 }
 
+/** Night vision tag of the systems list (SPEC 12.1: "NV AUTO" state). */
+const NV_LABEL = Object.freeze({ on: "§bNV AUTO", auto: "§8NV AUTO", off: "§8NV DESL." });
+/** ...compact form when the full one does not fit (worst cases drop it altogether). */
+const NV_SHORT = Object.freeze({ on: "§bNV", auto: "§8NV", off: "" });
+
 /**
  * Systems list (left, lower): up to 6 lines.
  * @param {{regen: number, drain: {reactor:number, arms:number, legs:number, eyes:number, hud:number,
- *   lock:number, flight:number}, flightMode?: string, lockArmed: boolean, locked?: boolean,
- *   heat: number, overheated?: boolean, shieldPct: number}} s
+ *   lock:number, flight:number, nv?:number}, flightMode?: string, lockArmed: boolean, locked?: boolean,
+ *   heat: number, overheated?: boolean, shieldPct: number, nv?: "on"|"auto"|"off"}} s
+ *   nv: auto night vision state (SPEC 12.1), shown next to the shield
  */
 export function systemsText(s) {
   const d = s.drain;
@@ -89,17 +95,24 @@ export function systemsText(s) {
     ? `§7MIRA ${s.locked ? "§cTRAVADA" : "§cARMADA"} §f${formatRate(-d.lock)}`
     : "§7MIRA §8DESARMADA";
   const heat = s.overheated ? `§cSUPERAQUECIDO ${pad3(s.heat)}%` : `§7CALOR §f${pad3(s.heat)}%`;
-  return joinLines(
-    [
-      `§7REATOR ARC §a${formatRate(s.regen)}`,
-      `§7LEDs §f${formatRate(-leds)} §7HUD §f${formatRate(-d.hud)}`,
-      flight,
-      lock,
-      `§7ESCUDO §a${s.shieldPct}%`,
-      heat,
-    ],
-    W.systems
-  );
+  const nv = s.nv && NV_LABEL[s.nv] !== undefined ? s.nv : "auto";
+  const build = (tag) =>
+    joinLines(
+      [
+        `§7REATOR ARC §a${formatRate(s.regen)}`,
+        `§7LEDs §f${formatRate(-leds)} §7HUD §f${formatRate(-d.hud)}`,
+        flight,
+        lock,
+        `§7ESCUDO §a${s.shieldPct}%${tag ? ` ${tag}` : ""}`,
+        heat,
+      ],
+      W.systems
+    );
+  for (const tag of [NV_LABEL[nv], NV_SHORT[nv]]) {
+    const out = build(tag);
+    if (out.split("\n").length === 6) return out;
+  }
+  return build("");
 }
 
 /**

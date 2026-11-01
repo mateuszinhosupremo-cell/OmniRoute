@@ -12,3 +12,6 @@ item.sym:mark_5_offline=Armadura Mark V
 item.sym:mark_5_offline_open=Armadura Mark V
 item.sym:mark_5_offline_opening=Armadura Mark V
 item.sym:mark_5_offline_closing=Armadura Mark V
+item.sym:mark_5_powerup=Armadura Mark V
+item.sym:mark_5_flying=Armadura Mark V
+item.sym:mark_5_open_flying=Armadura Mark V

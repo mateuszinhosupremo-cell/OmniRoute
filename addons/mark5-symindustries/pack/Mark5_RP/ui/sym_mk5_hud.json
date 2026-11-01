@@ -74,38 +74,21 @@
     ],
     "next": "@sym_mk5_hud.anim_boot_scan"
   },
-  "anim_reticle_ring": {
-    "anim_type": "flip_book",
-    "initial_uv": [
-      0,
-      0
-    ],
-    "frame_count": 9,
-    "frame_step": 96,
-    "fps": 10,
-    "easing": "linear"
+  "anim_ring_out": {
+    "anim_type": "alpha",
+    "easing": "in_out_sine",
+    "duration": 1.4,
+    "from": 0.55,
+    "to": 0.25,
+    "next": "@sym_mk5_hud.anim_ring_in"
   },
-  "anim_radar": {
-    "anim_type": "flip_book",
-    "initial_uv": [
-      0,
-      0
-    ],
-    "frame_count": 12,
-    "frame_step": 48,
-    "fps": 14,
-    "easing": "linear"
-  },
-  "anim_boot_load": {
-    "anim_type": "flip_book",
-    "initial_uv": [
-      0,
-      0
-    ],
-    "frame_count": 8,
-    "frame_step": 128,
-    "fps": 12,
-    "easing": "linear"
+  "anim_ring_in": {
+    "anim_type": "alpha",
+    "easing": "in_out_sine",
+    "duration": 1.4,
+    "from": 0.25,
+    "to": 0.55,
+    "next": "@sym_mk5_hud.anim_ring_out"
   },
   "root": {
     "type": "panel",
@@ -202,7 +185,7 @@
             },
             {
               "binding_type": "view",
-              "source_property_name": "((('%.5s' * #hud_title_text_string) = 'MK5H1') and (((('%.29s' * #hud_title_text_string) - ('%.28s' * #hud_title_text_string)) = '1') or ((('%.11s' * #hud_title_text_string) - ('%.10s' * #hud_title_text_string)) = 'c')))",
+              "source_property_name": "((('%.5s' * #hud_title_text_string) = 'MK5H1') and ((('_' + (('%.29s' * #hud_title_text_string) - ('%.28s' * #hud_title_text_string))) = '_1') or ((('%.11s' * #hud_title_text_string) - ('%.10s' * #hud_title_text_string)) = 'c')))",
               "target_property_name": "#visible"
             }
           ]
@@ -219,8 +202,7 @@
           "controls": [
             {
               "left_column": {
-                "type": "stack_panel",
-                "orientation": "vertical",
+                "type": "panel",
                 "size": [
                   152,
                   126
@@ -411,7 +393,7 @@
                               },
                               {
                                 "binding_type": "view",
-                                "source_property_name": "(((('_' + ((('_' + (('%.1224s' * #hud_title_text_string) - ('%.1221s' * #hud_title_text_string))) - '_0') - '_')) - '_0') - '_') + '%')",
+                                "source_property_name": "((('%.1224s' * #hud_title_text_string) - ('%.1221s' * #hud_title_text_string)) + '%')",
                                 "target_property_name": "#text"
                               },
                               {
@@ -449,7 +431,7 @@
                               },
                               {
                                 "binding_type": "view",
-                                "source_property_name": "(((('_' + ((('_' + (('%.1224s' * #hud_title_text_string) - ('%.1221s' * #hud_title_text_string))) - '_0') - '_')) - '_0') - '_') + '%')",
+                                "source_property_name": "((('%.1224s' * #hud_title_text_string) - ('%.1221s' * #hud_title_text_string)) + '%')",
                                 "target_property_name": "#text"
                               },
                               {
@@ -490,7 +472,7 @@
                               },
                               {
                                 "binding_type": "view",
-                                "source_property_name": "(((('_' + ((('_' + (('%.1224s' * #hud_title_text_string) - ('%.1221s' * #hud_title_text_string))) - '_0') - '_')) - '_0') - '_') + '%')",
+                                "source_property_name": "((('%.1224s' * #hud_title_text_string) - ('%.1221s' * #hud_title_text_string)) + '%')",
                                 "target_property_name": "#text"
                               },
                               {
@@ -865,15 +847,6 @@
                     }
                   },
                   {
-                    "gap_a": {
-                      "type": "panel",
-                      "size": [
-                        152,
-                        2
-                      ]
-                    }
-                  },
-                  {
                     "energy_panel": {
                       "type": "image",
                       "texture": "textures/sym/hud/panel_energy",
@@ -884,6 +857,10 @@
                       ],
                       "anchor_from": "top_left",
                       "anchor_to": "top_left",
+                      "offset": [
+                        0,
+                        88
+                      ],
                       "layer": 1,
                       "controls": [
                         {
@@ -1224,7 +1201,7 @@
                         },
                         {
                           "binding_type": "view",
-                          "source_property_name": "(not ((('%.23s' * #hud_title_text_string) - ('%.22s' * #hud_title_text_string)) = '0'))",
+                          "source_property_name": "(not (('_' + (('%.23s' * #hud_title_text_string) - ('%.22s' * #hud_title_text_string))) = '_0'))",
                           "target_property_name": "#visible"
                         }
                       ]
@@ -1284,13 +1261,10 @@
                         60,
                         60
                       ],
-                      "uv_size": [
-                        96,
-                        96
-                      ],
-                      "uv": "@sym_mk5_hud.anim_reticle_ring",
-                      "alpha": 0.5,
-                      "layer": 1
+                      "layer": 1,
+                      "anims": [
+                        "@sym_mk5_hud.anim_ring_out"
+                      ]
                     }
                   },
                   {
@@ -1346,7 +1320,7 @@
                         },
                         {
                           "binding_type": "view",
-                          "source_property_name": "(not ((('%.15s' * #hud_title_text_string) - ('%.14s' * #hud_title_text_string)) = '0'))",
+                          "source_property_name": "(not (('_' + (('%.15s' * #hud_title_text_string) - ('%.14s' * #hud_title_text_string))) = '_0'))",
                           "target_property_name": "#visible"
                         }
                       ]
@@ -1365,7 +1339,7 @@
                       "anchor_to": "center",
                       "offset": [
                         0,
-                        34
+                        -36
                       ],
                       "layer": 2,
                       "controls": [
@@ -1400,7 +1374,7 @@
                         },
                         {
                           "binding_type": "view",
-                          "source_property_name": "((('%.28s' * #hud_title_text_string) - ('%.27s' * #hud_title_text_string)) = '1')",
+                          "source_property_name": "(('_' + (('%.28s' * #hud_title_text_string) - ('%.27s' * #hud_title_text_string))) = '_1')",
                           "target_property_name": "#visible"
                         }
                       ]
@@ -1411,11 +1385,10 @@
             },
             {
               "right_column": {
-                "type": "stack_panel",
-                "orientation": "vertical",
+                "type": "panel",
                 "size": [
                   150,
-                  200
+                  122
                 ],
                 "anchor_from": "top_right",
                 "anchor_to": "top_right",
@@ -1426,15 +1399,144 @@
                 "layer": 2,
                 "controls": [
                   {
+                    "systems_panel": {
+                      "type": "panel",
+                      "size": [
+                        150,
+                        50
+                      ],
+                      "anchor_from": "top_left",
+                      "anchor_to": "top_left",
+                      "offset": [
+                        0,
+                        0
+                      ],
+                      "layer": 1,
+                      "controls": [
+                        {
+                          "bg": {
+                            "type": "image",
+                            "texture": "textures/sym/hud/panel_systems",
+                            "bilinear": true,
+                            "size": [
+                              150,
+                              50
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              0,
+                              0
+                            ],
+                            "layer": 1
+                          }
+                        },
+                        {
+                          "caption": {
+                            "type": "label",
+                            "text": "SISTEMAS",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              6,
+                              1.5
+                            ],
+                            "font_scale_factor": 0.5,
+                            "color": [
+                              0.42,
+                              0.7,
+                              0.82
+                            ],
+                            "layer": 2
+                          }
+                        },
+                        {
+                          "systems_text": {
+                            "type": "label",
+                            "text": "#text",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              5,
+                              10
+                            ],
+                            "size": [
+                              142,
+                              "default"
+                            ],
+                            "font_scale_factor": 0.6,
+                            "color": [
+                              0.78,
+                              0.95,
+                              1
+                            ],
+                            "layer": 2,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "(('%.405s' * #hud_title_text_string) - ('%.245s' * #hud_title_text_string))",
+                                "target_property_name": "#text"
+                              }
+                            ]
+                          }
+                        }
+                      ],
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "((('_' + (('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string))) = '_0') and (('_' + (('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string))) = '_0'))",
+                          "target_property_name": "#visible"
+                        }
+                      ]
+                    }
+                  },
+                  {
                     "scan_panel": {
-                      "type": "image",
-                      "texture": "textures/sym/hud/panel_scan",
-                      "bilinear": true,
+                      "type": "panel",
                       "size": [
                         150,
                         66
                       ],
+                      "anchor_from": "top_left",
+                      "anchor_to": "top_left",
+                      "offset": [
+                        0,
+                        0
+                      ],
+                      "layer": 1,
                       "controls": [
+                        {
+                          "bg": {
+                            "type": "image",
+                            "texture": "textures/sym/hud/panel_scan",
+                            "bilinear": true,
+                            "size": [
+                              150,
+                              66
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              0,
+                              0
+                            ],
+                            "layer": 1
+                          }
+                        },
                         {
                           "radar_idle": {
                             "type": "image",
@@ -1458,7 +1560,7 @@
                               },
                               {
                                 "binding_type": "view",
-                                "source_property_name": "((('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string)) = '1')",
+                                "source_property_name": "(('_' + (('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string))) = '_1')",
                                 "target_property_name": "#visible"
                               }
                             ]
@@ -1479,12 +1581,10 @@
                               4,
                               0.5
                             ],
-                            "uv_size": [
-                              48,
-                              48
-                            ],
-                            "uv": "@sym_mk5_hud.anim_radar",
                             "layer": 2,
+                            "anims": [
+                              "@sym_mk5_hud.anim_blink_out"
+                            ],
                             "bindings": [
                               {
                                 "binding_name": "#hud_title_text_string",
@@ -1492,7 +1592,7 @@
                               },
                               {
                                 "binding_type": "view",
-                                "source_property_name": "((('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string)) = '2')",
+                                "source_property_name": "(('_' + (('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string))) = '_2')",
                                 "target_property_name": "#visible"
                               }
                             ]
@@ -1584,7 +1684,7 @@
                               },
                               {
                                 "binding_type": "view",
-                                "source_property_name": "((('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string)) = '2')",
+                                "source_property_name": "(('_' + (('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string))) = '_2')",
                                 "target_property_name": "#visible"
                               }
                             ]
@@ -1598,27 +1698,7 @@
                         },
                         {
                           "binding_type": "view",
-                          "source_property_name": "(not ((('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string)) = '0'))",
-                          "target_property_name": "#visible"
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "gap": {
-                      "type": "panel",
-                      "size": [
-                        150,
-                        3
-                      ],
-                      "bindings": [
-                        {
-                          "binding_name": "#hud_title_text_string",
-                          "binding_type": "global"
-                        },
-                        {
-                          "binding_type": "view",
-                          "source_property_name": "((not ((('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string)) = '0')) and (not ((('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string)) = '0')))",
+                          "source_property_name": "(not (('_' + (('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string))) = '_0'))",
                           "target_property_name": "#visible"
                         }
                       ]
@@ -1626,18 +1706,135 @@
                   },
                   {
                     "target_panel": {
-                      "type": "image",
-                      "texture": "#texture",
-                      "allow_debug_missing_texture": false,
-                      "bilinear": true,
-                      "property_bag": {
-                        "#texture": "textures/sym/hud/target_frame_0"
-                      },
+                      "type": "panel",
                       "size": [
                         150,
                         54
                       ],
+                      "anchor_from": "top_left",
+                      "anchor_to": "top_left",
+                      "offset": [
+                        0,
+                        0
+                      ],
+                      "layer": 1,
                       "controls": [
+                        {
+                          "frame_h": {
+                            "type": "image",
+                            "texture": "textures/sym/hud/target_frame_h",
+                            "bilinear": true,
+                            "size": [
+                              150,
+                              54
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              0,
+                              0
+                            ],
+                            "layer": 1,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "((('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string)) = 'h')",
+                                "target_property_name": "#visible"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "frame_n": {
+                            "type": "image",
+                            "texture": "textures/sym/hud/target_frame_n",
+                            "bilinear": true,
+                            "size": [
+                              150,
+                              54
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              0,
+                              0
+                            ],
+                            "layer": 1,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "((('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string)) = 'n')",
+                                "target_property_name": "#visible"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "frame_p": {
+                            "type": "image",
+                            "texture": "textures/sym/hud/target_frame_p",
+                            "bilinear": true,
+                            "size": [
+                              150,
+                              54
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              0,
+                              0
+                            ],
+                            "layer": 1,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "((('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string)) = 'p')",
+                                "target_property_name": "#visible"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "frame_j": {
+                            "type": "image",
+                            "texture": "textures/sym/hud/target_frame_j",
+                            "bilinear": true,
+                            "size": [
+                              150,
+                              54
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              0,
+                              0
+                            ],
+                            "layer": 1,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "((('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string)) = 'j')",
+                                "target_property_name": "#visible"
+                              }
+                            ]
+                          }
+                        },
                         {
                           "caption": {
                             "type": "label",
@@ -1738,52 +1935,167 @@
                         },
                         {
                           "binding_type": "view",
-                          "source_property_name": "('textures/sym/hud/target_frame_' + (('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string)))",
-                          "target_property_name": "#texture"
-                        },
-                        {
-                          "binding_type": "view",
-                          "source_property_name": "(not ((('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string)) = '0'))",
+                          "source_property_name": "((not (('_' + (('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string))) = '_0')) and (('_' + (('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string))) = '_0'))",
                           "target_property_name": "#visible"
                         }
                       ]
                     }
                   },
                   {
-                    "systems_panel": {
-                      "type": "image",
-                      "texture": "textures/sym/hud/panel_systems",
-                      "bilinear": true,
+                    "target_panel_low": {
+                      "type": "panel",
                       "size": [
                         150,
-                        50
+                        54
+                      ],
+                      "anchor_from": "top_left",
+                      "anchor_to": "top_left",
+                      "offset": [
+                        0,
+                        68
                       ],
                       "layer": 1,
                       "controls": [
                         {
+                          "frame_h": {
+                            "type": "image",
+                            "texture": "textures/sym/hud/target_frame_h",
+                            "bilinear": true,
+                            "size": [
+                              150,
+                              54
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              0,
+                              0
+                            ],
+                            "layer": 1,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "((('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string)) = 'h')",
+                                "target_property_name": "#visible"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "frame_n": {
+                            "type": "image",
+                            "texture": "textures/sym/hud/target_frame_n",
+                            "bilinear": true,
+                            "size": [
+                              150,
+                              54
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              0,
+                              0
+                            ],
+                            "layer": 1,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "((('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string)) = 'n')",
+                                "target_property_name": "#visible"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "frame_p": {
+                            "type": "image",
+                            "texture": "textures/sym/hud/target_frame_p",
+                            "bilinear": true,
+                            "size": [
+                              150,
+                              54
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              0,
+                              0
+                            ],
+                            "layer": 1,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "((('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string)) = 'p')",
+                                "target_property_name": "#visible"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "frame_j": {
+                            "type": "image",
+                            "texture": "textures/sym/hud/target_frame_j",
+                            "bilinear": true,
+                            "size": [
+                              150,
+                              54
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              0,
+                              0
+                            ],
+                            "layer": 1,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "((('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string)) = 'j')",
+                                "target_property_name": "#visible"
+                              }
+                            ]
+                          }
+                        },
+                        {
                           "caption": {
                             "type": "label",
-                            "text": "SISTEMAS",
+                            "text": "ANÁLISE DE ALVO",
                             "localize": false,
                             "shadow": true,
                             "font_type": "default",
                             "anchor_from": "top_left",
                             "anchor_to": "top_left",
                             "offset": [
-                              6,
-                              1.5
+                              7,
+                              3
                             ],
-                            "font_scale_factor": 0.5,
+                            "font_scale_factor": 0.55,
                             "color": [
-                              0.42,
-                              0.7,
-                              0.82
+                              0.95,
+                              0.98,
+                              1
                             ],
                             "layer": 2
                           }
                         },
                         {
-                          "systems_text": {
+                          "target_text": {
                             "type": "label",
                             "text": "#text",
                             "localize": false,
@@ -1792,17 +2104,17 @@
                             "anchor_from": "top_left",
                             "anchor_to": "top_left",
                             "offset": [
-                              5,
-                              10
+                              6,
+                              14
                             ],
                             "size": [
-                              142,
+                              138,
                               "default"
                             ],
-                            "font_scale_factor": 0.6,
+                            "font_scale_factor": 0.65,
                             "color": [
-                              0.78,
                               0.95,
+                              0.98,
                               1
                             ],
                             "layer": 2,
@@ -1813,8 +2125,41 @@
                               },
                               {
                                 "binding_type": "view",
-                                "source_property_name": "(('%.405s' * #hud_title_text_string) - ('%.245s' * #hud_title_text_string))",
+                                "source_property_name": "(('%.565s' * #hud_title_text_string) - ('%.405s' * #hud_title_text_string))",
                                 "target_property_name": "#text"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "hp_bar": {
+                            "type": "image",
+                            "texture": "#texture",
+                            "allow_debug_missing_texture": false,
+                            "bilinear": true,
+                            "property_bag": {
+                              "#texture": "textures/sym/hud/hp_0_00"
+                            },
+                            "size": [
+                              138,
+                              5
+                            ],
+                            "anchor_from": "top_left",
+                            "anchor_to": "top_left",
+                            "offset": [
+                              6,
+                              45
+                            ],
+                            "layer": 2,
+                            "bindings": [
+                              {
+                                "binding_name": "#hud_title_text_string",
+                                "binding_type": "global"
+                              },
+                              {
+                                "binding_type": "view",
+                                "source_property_name": "('textures/sym/hud/hp_' + (((('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string)) + '_') + (('%.18s' * #hud_title_text_string) - ('%.16s' * #hud_title_text_string))))",
+                                "target_property_name": "#texture"
                               }
                             ]
                           }
@@ -1827,7 +2172,7 @@
                         },
                         {
                           "binding_type": "view",
-                          "source_property_name": "(((('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string)) = '0') and ((('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string)) = '0'))",
+                          "source_property_name": "((not (('_' + (('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string))) = '_0')) and (not (('_' + (('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string))) = '_0')))",
                           "target_property_name": "#visible"
                         }
                       ]
@@ -1849,7 +2194,7 @@
                 "anchor_to": "bottom_middle",
                 "offset": [
                   0,
-                  -56
+                  -55
                 ],
                 "layer": 2,
                 "controls": [
@@ -1986,7 +2331,7 @@
                   },
                   {
                     "binding_type": "view",
-                    "source_property_name": "(not ((('%.19s' * #hud_title_text_string) - ('%.18s' * #hud_title_text_string)) = '0'))",
+                    "source_property_name": "(not (('_' + (('%.19s' * #hud_title_text_string) - ('%.18s' * #hud_title_text_string))) = '_0'))",
                     "target_property_name": "#visible"
                   }
                 ]
@@ -2017,13 +2362,7 @@
           "controls": [
             {
               "boot_frame": {
-                "type": "image",
-                "texture": "#texture",
-                "allow_debug_missing_texture": false,
-                "bilinear": true,
-                "property_bag": {
-                  "#texture": "textures/sym/hud/boot_frame_2"
-                },
+                "type": "panel",
                 "size": [
                   230,
                   106
@@ -2036,6 +2375,64 @@
                 ],
                 "layer": 1,
                 "controls": [
+                  {
+                    "frame_boot": {
+                      "type": "image",
+                      "texture": "textures/sym/hud/boot_frame_2",
+                      "bilinear": true,
+                      "size": [
+                        230,
+                        106
+                      ],
+                      "anchor_from": "top_left",
+                      "anchor_to": "top_left",
+                      "offset": [
+                        0,
+                        0
+                      ],
+                      "layer": 1,
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "(('%.5s' * #hud_title_text_string) = 'MK5H2')",
+                          "target_property_name": "#visible"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "frame_fail": {
+                      "type": "image",
+                      "texture": "textures/sym/hud/boot_frame_3",
+                      "bilinear": true,
+                      "size": [
+                        230,
+                        106
+                      ],
+                      "anchor_from": "top_left",
+                      "anchor_to": "top_left",
+                      "offset": [
+                        0,
+                        0
+                      ],
+                      "layer": 1,
+                      "bindings": [
+                        {
+                          "binding_name": "#hud_title_text_string",
+                          "binding_type": "global"
+                        },
+                        {
+                          "binding_type": "view",
+                          "source_property_name": "(('%.5s' * #hud_title_text_string) = 'MK5H3')",
+                          "target_property_name": "#visible"
+                        }
+                      ]
+                    }
+                  },
                   {
                     "header_boot": {
                       "type": "label",
@@ -2191,12 +2588,10 @@
                         9,
                         -7
                       ],
-                      "uv_size": [
-                        128,
-                        10
-                      ],
-                      "uv": "@sym_mk5_hud.anim_boot_load",
                       "layer": 2,
+                      "anims": [
+                        "@sym_mk5_hud.anim_pulse_out"
+                      ],
                       "bindings": [
                         {
                           "binding_name": "#hud_title_text_string",
@@ -2246,17 +2641,6 @@
                         }
                       ]
                     }
-                  }
-                ],
-                "bindings": [
-                  {
-                    "binding_name": "#hud_title_text_string",
-                    "binding_type": "global"
-                  },
-                  {
-                    "binding_type": "view",
-                    "source_property_name": "('textures/sym/hud/boot_frame_' + (('%.5s' * #hud_title_text_string) - ('%.4s' * #hud_title_text_string)))",
-                    "target_property_name": "#texture"
                   }
                 ]
               }

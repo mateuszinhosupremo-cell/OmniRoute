@@ -18,7 +18,7 @@
         "first_person": "animation.sym.mk5.first_person",
         "first_person_busy_hand": "animation.sym.mk5.first_person_busy_hand",
         "worn": "animation.sym.mk5.worn",
-        "eyes_boot": "animation.sym.mk5.eyes_boot"
+        "visor_shut": "animation.sym.mk5.visor_shut"
       },
       "scripts": {
         "animate": [
@@ -26,7 +26,7 @@
             "worn": "!(c.item_slot == 'main_hand' || c.item_slot == 'off_hand')"
           },
           {
-            "eyes_boot": "!(c.item_slot == 'main_hand' || c.item_slot == 'off_hand')"
+            "visor_shut": "!(c.item_slot == 'main_hand' || c.item_slot == 'off_hand')"
           },
           {
             "held": "c.item_slot == 'main_hand'"

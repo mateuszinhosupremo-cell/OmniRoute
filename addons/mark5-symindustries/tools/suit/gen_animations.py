@@ -18,13 +18,29 @@ import sys
 
 sys.dont_write_bytecode = True  # keep tools/suit free of __pycache__
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import G_FP, G_ROOT, RP, load_json, report, write_json  # noqa: E402
+from common import FLAME_BONES, G_FP, G_ROOT, RP, load_json, report, write_json  # noqa: E402
 
 ATT_PATH = os.path.join(RP, "animations", "sym_mk5.animation.json")
 PLAYER_PATH = os.path.join(RP, "animations", "sym_mk5_player.animation.json")
 
 MASK, EYES, LMASK, RMASK = "mk5_mask", "mk5_eyes", "mk5_Left_mask", "mk5_Right_mask"
 ZERO, ONE = [0, 0, 0], [1, 1, 1]
+# SPEC 14.2: faceplate bones pinned by visor_shut / visor_up (eyes handled separately)
+FACE_BONES = [MASK, LMASK, RMASK, "mk5_mainframe", "mk5_upper_face", "mk5_lower_face",
+              "mk5_Lower_face_left", "mk5_Lower_face_right"]
+# SPEC 11.1: flicker phases (deg) so the four nozzles never pulse in sync
+FLAME_PHASES = {"mk5_flame_rh": 0, "mk5_flame_lh": 97, "mk5_flame_rf": 211, "mk5_flame_lf": 304}
+
+
+def flame_flicker():
+    """Fast, subtle per-nozzle flicker; the bone pivot sits at the nozzle so it grows away from it."""
+    bones = {}
+    for bone, ph in FLAME_PHASES.items():
+        y = ("0.86 + math.sin(query.life_time * 1100 + %d) * 0.13"
+             " + math.sin(query.life_time * 2050 + %d) * 0.06") % (ph, (ph * 17) % 360)
+        xz = "0.95 + math.sin(query.life_time * 1450 + %d) * 0.055" % ((ph * 7 + 60) % 360)
+        bones[bone] = {"scale": [xz, y, xz]}
+    return bones
 
 
 # ---------------------------------------------------------------- keyframe helpers
@@ -65,6 +81,18 @@ def flicker_off(t0, t1, transitions=5):
         keys[fmt(t0 + (t1 - t0) * i / transitions)] = step(state, nxt)
         state = nxt
     assert state is ZERO
+    return keys
+
+
+def flicker_on(t0, t1, transitions=5):
+    """Crisp LED flicker 0 -> 1 -> 0 ... ending ON at t1 (odd number of transitions)."""
+    keys = {fmt(t0): ZERO}
+    state = ZERO
+    for i in range(1, transitions + 1):
+        nxt = ONE if state is ZERO else ZERO
+        keys[fmt(t0 + (t1 - t0) * i / transitions)] = step(state, nxt)
+        state = nxt
+    assert state is ONE
     return keys
 
 
@@ -117,7 +145,8 @@ def attachable_animations(src):
         "rotation": remap(ch(up3, MASK, "rotation"), 0.55, 1.05, 0.12, 0.52),
         "position": remap(ch(up3, MASK, "position"), 0.55, 1.05, 0.12, 0.52),
     }
-    closing[EYES] = {"scale": {"0.0": ZERO, "0.8": step(ZERO, ONE)}}
+    # SPEC 11.1: sym:mark_5 no longer carries eyes_boot, so the closing clip lights the eyes
+    closing[EYES] = {"scale": merged({"0.0": ZERO}, flicker_on(0.6, 0.8))}
 
     eyes_boot = {EYES: {"scale": remap(ch(up3, EYES, "scale"), 1.8, 2.675, 0.0, 0.875)}}
     eyes_shutdown = {EYES: {"scale": remap(ch(off, EYES, "scale"), 0.625, 1.5, 0.0, 1.2)}}
@@ -132,6 +161,16 @@ def attachable_animations(src):
         for c in ("rotation", "position"):
             assert last_value(opening[bone][c]) == ZERO and last_value(closing[bone][c]) == ZERO
 
+    # SPEC 14.2: pin the faceplate on every worn non-transition variant so a chest-item swap
+    # can never show the mask in the wrong pose for a frame.
+    rest = {"rotation": ZERO, "position": ZERO, "scale": ONE}
+    visor_shut = {b: dict(rest) for b in FACE_BONES}
+    visor_up = {b: dict(rest) for b in FACE_BONES}
+    visor_up[MASK] = {"rotation": [-75, 0, 0], "position": [0, 5, 3], "scale": ONE}
+    visor_up[EYES] = {"scale": ZERO}  # same effect as the old visor_opened clip it replaces
+    assert visor_up[MASK]["rotation"] == opened[MASK]["rotation"]
+    assert visor_up[MASK]["position"] == opened[MASK]["position"]
+
     hold = "hold_on_last_frame"
     return {
         "animation.sym.mk5.visor_opened": {"loop": True, "bones": opened},
@@ -139,6 +178,10 @@ def attachable_animations(src):
         "animation.sym.mk5.visor_closing": {"loop": hold, "animation_length": 0.8, "bones": closing},
         "animation.sym.mk5.eyes_boot": {"loop": hold, "animation_length": 0.9, "bones": eyes_boot},
         "animation.sym.mk5.eyes_shutdown": {"loop": hold, "animation_length": 1.2, "bones": eyes_shutdown},
+        "animation.sym.mk5.visor_shut": {"loop": True, "bones": visor_shut},
+        "animation.sym.mk5.visor_up": {"loop": True, "bones": visor_up},
+        "animation.sym.mk5.flames_flicker": {"loop": True, "bones": flame_flicker()},
+        "animation.sym.mk5.flames_hidden": {"loop": True, "bones": {b: {"scale": ZERO} for b in FLAME_BONES}},
     }
 
 
@@ -188,9 +231,11 @@ def root_tilt(r, extra=None):
     }
 
 
-def head_counter(r, lo=-75, hi=75):
-    """Keep the vanilla look-at but cancel the root tilt so the head looks along the view."""
-    return {"rotation": ["(math.clamp(this - (%s) * %s, %d, %d) - this) * %s" % (r, G_ROOT, lo, hi, G_FP), 0, 0]}
+# SPEC 14.1: NO head channel in mk5_fly / mk5_boost. Vanilla
+# `animation.humanoid.look_at_target.default` is already `"relative_to": {"rotation": "entity"}`,
+# so the head is oriented against the ENTITY, not against our rotated `root` bone. The old
+# `head_counter()` compensation double-corrected and pitched the helmet up to 75 deg backwards
+# ("the helmet opens / tilts way back" in the user's video). Removed; never reintroduce.
 
 
 def key_pose(keys, kind):
@@ -226,7 +271,6 @@ def player_animations():
         "animation_length": 2.0,
         "bones": {
             "root": root_tilt(R_FLY),
-            "head": head_counter(R_FLY),
             "rightArm": limb("30 + math.sin(%s * 180) * 2 - %s" % (T, PUNCH), "0", "10"),
             "leftArm": limb("30 + math.sin(%s * 180 + 60) * 2" % T, "0", "-10"),
             "rightLeg": limb("10 + math.sin(%s * 180 + 90) * 2" % T, "0", "1.5"),
@@ -238,7 +282,6 @@ def player_animations():
         "animation_length": 1.0,
         "bones": {
             "root": root_tilt(R_BOOST, SHAKE),
-            "head": head_counter(R_BOOST),
             "rightArm": limb("10 + math.sin(query.life_time * 2300) * 0.8", "0", "6"),
             "leftArm": limb("10 + math.sin(query.life_time * 2300 + 90) * 0.8", "0", "-6"),
             "rightLeg": limb("3 + math.sin(query.life_time * 2100) * 0.6", "0", "1"),
@@ -269,7 +312,7 @@ def player_animations():
             # 4.5 + 10 * cos 38 - 12 * cos 4 = 0.4 px
             "root": {"position": root_keys([(0, 0), (0.1, -8), (0.18, -7.5), (0.62, -7.5), (0.92, 0), (1.0, 0)])},
             "waist": {"rotation": key_pose([(0, None), (0.1, (42, 0, 0)), (0.18, (38, 0, 0)), (0.62, (38, 0, 0)), (0.92, None)], "add")},
-            "head": {"rotation": key_pose([(0, None), (0.1, (10, 0, 0)), (0.4, (10, 0, 0)), (0.55, (-40, 0, 0)), (0.75, (-40, 0, 0)), (0.95, None)], "add")},
+            "head": {"rotation": key_pose([(0, None), (0.1, (10, 0, 0)), (0.4, (10, 0, 0)), (0.55, (-14, 0, 0)), (0.75, (-14, 0, 0)), (0.95, None)], "add")},
             # right knee down (leg back), left leg forward bent, right fist to the ground, left arm out back
             "rightLeg": {"rotation": key_pose([(0, None), (0.1, (68, 0, 6)), (0.62, (68, 0, 6)), (0.92, (0, 0, 0)), (1.0, None)], "abs")},
             "leftLeg": {"rotation": key_pose([(0, None), (0.1, (-68, 0, -4)), (0.62, (-68, 0, -4)), (0.92, (0, 0, 0)), (1.0, None)], "abs")},

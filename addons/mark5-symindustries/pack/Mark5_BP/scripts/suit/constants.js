@@ -3,6 +3,7 @@
 
 export const ITEM_SUIT = "sym:mark_5";
 export const ITEM_REACTOR = "sym:mark_5_reactor";
+export const ITEM_CASE = "sym:mark_5_suitcase";
 export const ENTITY_CASE = "sym:mk5_case";
 
 /** Dynamic property ids (player properties unless noted). */
@@ -15,6 +16,7 @@ export const PROP = Object.freeze({
   LOCK_MODE: "sym:mk5_lock_mode", // homing reticle armed
   LOCK_TARGET: "sym:mk5_lock_target", // id of the locked entity (for other add-ons)
   TIPS: "sym:mk5_tips", // gesture tips already shown
+  NV: "sym:mk5_nv", // night vision preference: undefined = AUTO (default), false = off (SPEC 12.1)
   ITEM_KEEP: "sym:mk5_kod", // item property: keepOnDeath of the final item a temp item replaced
 });
 
@@ -32,11 +34,23 @@ export const PROP = Object.freeze({
  * @property {boolean} temp      transition item (locked in the slot, swapped by the script)
  * @property {string} final      id worn when the transition ends (itself for final variants)
  * @property {number} protection
+ * @property {boolean} flying    worn only while flying (geometry flames, SPEC 11.1)
+ * @property {string} ground     non-flying twin (itself for every non-flying variant)
  */
 
 /** @returns {VariantInfo} */
-const variant = (id, powered, visor, temp, final, dying = false) =>
-  Object.freeze({ id, powered, dying, visor, temp, final: final ?? id, protection: powered || dying ? 20 : 8 });
+const variant = (id, powered, visor, temp, final, dying = false, ground = undefined) =>
+  Object.freeze({
+    id,
+    powered,
+    dying,
+    visor,
+    temp,
+    final: final ?? id,
+    protection: powered || dying ? 20 : 8,
+    flying: !!ground,
+    ground: ground ?? id,
+  });
 
 /** @type {Readonly<Record<string, VariantInfo>>} */
 export const VARIANTS = Object.freeze({
@@ -49,10 +63,28 @@ export const VARIANTS = Object.freeze({
   "sym:mark_5_offline_open": variant("sym:mark_5_offline_open", false, "open", false),
   "sym:mark_5_offline_opening": variant("sym:mark_5_offline_opening", false, "opening", true, "sym:mark_5_offline_open"),
   "sym:mark_5_offline_closing": variant("sym:mark_5_offline_closing", false, "closing", true, "sym:mark_5_offline"),
+  // SPEC 11.1: flying twins (geometry flames) and the reboot item (eyes flicker on, 24 ticks)
+  "sym:mark_5_flying": variant("sym:mark_5_flying", true, "closed", false, undefined, false, "sym:mark_5"),
+  "sym:mark_5_open_flying": variant("sym:mark_5_open_flying", true, "open", false, undefined, false, "sym:mark_5_open"),
+  "sym:mark_5_powerup": variant("sym:mark_5_powerup", true, "closed", true, "sym:mark_5"),
 });
 
 export const SUIT_IDS = Object.freeze(Object.keys(VARIANTS));
 export const POWERDOWN_ID = "sym:mark_5_powerdown";
+export const POWERUP_ID = "sym:mark_5_powerup";
+
+/** Powered final ground variant -> its flying twin (SPEC 11.1). */
+const FLYING_TWIN = Object.freeze({ "sym:mark_5": "sym:mark_5_flying", "sym:mark_5_open": "sym:mark_5_open_flying" });
+
+/** Flying twin of a powered final ground variant (undefined when it has none). @param {string|undefined} id */
+export function flyingTwin(id) {
+  return typeof id === "string" && Object.prototype.hasOwnProperty.call(FLYING_TWIN, id) ? FLYING_TWIN[id] : undefined;
+}
+
+/** Non-flying twin of a variant (the id itself when it is not a flying variant). @param {string|undefined} id */
+export function groundTwin(id) {
+  return isSuitId(id) ? VARIANTS[id].ground : id;
+}
 
 /** @param {string|undefined} id */
 export function isSuitId(id) {
@@ -85,7 +117,7 @@ export function variantFor(q) {
 }
 
 /** Ticks a transition item is worn before the final variant replaces it (SPEC 2.1). */
-export const TRANSITION_TICKS = Object.freeze({ visor: 16, powerdown: 24 });
+export const TRANSITION_TICKS = Object.freeze({ visor: 16, powerdown: 24, powerup: 24 });
 
 // ---------------------------------------------------------------------------------------------
 // tuning (SPEC 6) — energy is in "units", rates are per second, speeds in blocks per tick
@@ -150,6 +182,18 @@ export const TUNING = Object.freeze({
   SNEAK_DOUBLE_TAP_TICKS: 10,
   BOOT_TICKS: 50,
   FAILURE_TICKS: 40,
+  // SPEC 12.1 auto night vision
+  NV_DRAIN: 0.5, // per second while our night vision is on
+  NV_SAMPLE_TICKS: 10,
+  NV_ON_LEVEL: 6, // effective light <= this for NV_ON_SAMPLES samples -> on
+  NV_ON_SAMPLES: 2,
+  NV_OFF_LEVEL: 9, // effective light >= this -> off
+  NV_NIGHT_FACTOR: 0.27, // sky light multiplier at night
+  NV_DURATION: 400, // ticks per application
+  NV_REFRESH_BELOW: 300, // re-applied when fewer ticks remain (never the < 10 s flicker)
+  // SPEC 12.2 transformation costs
+  SUITUP_COST: 80,
+  SUITOFF_COST: 40,
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -178,12 +222,12 @@ export const SND = Object.freeze({
   MENU: "sym.mk5.menu",
   HELMET_OPEN: "sym.mk5.helmet_open",
   HELMET_CLOSE: "sym.mk5.helmet_close",
+  NIGHT_VISION: "sym.mk5.night_vision",
 });
 
 export const FX = Object.freeze({
-  THRUST: "sym:mk5_thrust",
-  THRUST_GLOW: "sym:mk5_thrust_glow",
-  SMOKE: "sym:mk5_smoke",
+  // SPEC 11.1: the in-flight thrust / glow / smoke sprites are gone (geometry flames instead)
+  TRAIL: "sym:mk5_trail", // SPEC 12.4: thin contrail from each boot while boosting (dir, vel)
   BOOM: "sym:mk5_boom",
   TAKEOFF: "sym:mk5_takeoff",
   LANDING: "sym:mk5_landing",

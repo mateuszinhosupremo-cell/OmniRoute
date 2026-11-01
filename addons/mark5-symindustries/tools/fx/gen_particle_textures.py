@@ -24,11 +24,12 @@ B = os.path.abspath(os.path.join(HERE, "..", ".."))
 OUT = os.path.join(B, "pack", "Mark5_RP", "textures", "sym", "particle", "mk5_fx.png")
 PREVIEW = os.path.join(B, "dist", "fx_atlas_preview.png")
 
-ATLAS_W, ATLAS_H = 256, 384
+ATLAS_W, ATLAS_H = 256, 576
 SS = 4  # supersampling
 
 # name -> (x, y, w, h) in atlas pixels
 ATLAS = {
+    "burst": (0, 0, 64, 64),
     "ring_soft": (64, 0, 64, 64),
     "hex_shield": (128, 0, 64, 64),
     "brackets": (192, 0, 64, 64),
@@ -56,6 +57,26 @@ ATLAS["flash"] = (192, 192, 64, 64)
 # 128 px rings for the 32-block scanner pulse (quad up to ~71 blocks wide)
 ATLAS["ring_wave"] = (0, 256, 128, 128)
 ATLAS["ring_tech_hd"] = (128, 256, 128, 128)
+# SPEC 12.4 "clean" set: hard-edged shapes, no noise — shockwave rings, needles, chunks, dots
+ATLAS["ring_crisp"] = (0, 384, 128, 128)
+ATLAS["ring_dust"] = (128, 384, 128, 128)
+ATLAS["streak"] = (0, 512, 32, 32)
+ATLAS["chunk"] = (32, 512, 32, 32)
+ATLAS["dot"] = (64, 512, 32, 32)
+ATLAS["puff"] = (96, 512, 32, 32)
+
+
+def _assert_no_overlap():
+    """Cells silently overwriting each other used to be invisible until rendered (lock vs row 96)."""
+    rects = sorted(ATLAS.items())
+    for i, (n1, (x1, y1, w1, h1)) in enumerate(rects):
+        assert 0 <= x1 and 0 <= y1 and x1 + w1 <= ATLAS_W and y1 + h1 <= ATLAS_H, f"{n1} outside atlas"
+        for n2, (x2, y2, w2, h2) in rects[i + 1:]:
+            if x1 < x2 + w2 and x2 < x1 + w1 and y1 < y2 + h2 and y2 < y1 + h1:
+                raise AssertionError(f"atlas cells overlap: {n1} {ATLAS[n1]} / {n2} {ATLAS[n2]}")
+
+
+_assert_no_overlap()
 
 
 # ----------------------------------------------------------------------------- helpers
@@ -478,6 +499,83 @@ def cell_flash(w, h, rng):
     return white(alpha), alpha
 
 
+# ------------------------------------------------- SPEC 12.4 "clean" cells (hard edges, no noise)
+def cell_ring_crisp(w, h, rng):
+    """Shockwave rim: one solid hard-edged ring + a thin inner echo. Nothing random."""
+    x, y, r, a = grid(w, h)
+    rim = 0.89
+    core = (np.abs(r - rim) <= 0.058).astype(np.float64)
+    echo = (np.abs(r - 0.70) <= 0.016).astype(np.float64) * 0.5
+    wash = np.exp(-np.maximum(rim - r, 0) / 0.11) * 0.30 * (r <= rim)
+    glow = np.exp(-np.maximum(r - rim, 0) / 0.035) * 0.25 * (r > rim)
+    al = np.clip(np.maximum(np.maximum(core, echo), np.maximum(wash, glow)), 0, 1) * (r <= 1.0)
+    return white(al), al
+
+
+def cell_ring_dust(w, h, rng):
+    """Ground shockwave: crisp leading rim + clean radial spokes sweeping inward (no smoke blobs)."""
+    x, y, r, a = grid(w, h)
+    rim = 0.88
+    core = (np.abs(r - rim) <= 0.055).astype(np.float64)
+    spokes = np.clip(np.cos(a * 22.0), 0, 1) ** 1.6
+    body = spokes * smooth(0.34, rim, r) * (r < rim) * 0.6
+    inner = np.exp(-np.maximum(rim - r, 0) / 0.09) * 0.28 * (r < rim)
+    al = np.clip(np.maximum(core, np.maximum(body, inner)), 0, 1) * (r <= 1.0)
+    return white(al), al
+
+
+def cell_burst(w, h, rng):
+    """Impact flash: hard white core + 4 long / 4 short sharp spikes."""
+    x, y, r, a = grid(w, h)
+    core = smooth(0.30, 0.17, r)
+    long_s = np.clip(np.cos(a * 4.0), 0, 1) ** 7 * np.exp(-r / 0.34)
+    short_s = np.clip(np.cos((a + np.pi / 4.0) * 4.0), 0, 1) ** 11 * np.exp(-r / 0.20)
+    halo = np.exp(-r / 0.15) * 0.45
+    al = np.clip(core + long_s * 0.95 + short_s * 0.6 + halo, 0, 1) * (r <= 1.0)
+    return white(al), al
+
+
+def cell_streak(w, h, rng):
+    """Sharp tapered needle pointing up (spark / vapor streak); brightest at the head."""
+    x, y, r, a = grid(w, h)
+    taper = np.clip(1.0 - np.abs(y), 0, 1) ** 0.55
+    half = 0.44 * taper
+    core = (np.abs(x) <= half * 0.45).astype(np.float64)
+    body = smooth(half, half * 0.5, np.abs(x))
+    al = np.clip(np.maximum(core, body), 0, 1) * (np.abs(y) <= 0.97)
+    al *= 0.55 + 0.45 * np.clip(-y * 0.5 + 0.5, 0, 1)
+    return white(al), al
+
+
+def cell_chunk(w, h, rng):
+    """Debris chunk: one solid hard-edged polygon with a lighter top-left facet."""
+    x, y, r, a = grid(w, h)
+    edge = 0.66 + 0.13 * np.cos(3.0 * a + 0.7) + 0.07 * np.cos(5.0 * a - 2.1)
+    al = (r <= edge).astype(np.float64)
+    facet = (x + y < -0.12) & (r <= edge)
+    rgb = np.ones(al.shape + (3,)) * 0.72
+    rgb[facet] = 1.0
+    return rgb, al
+
+
+def cell_dot(w, h, rng):
+    """Contrail bead: solid core, hard rim, tight halo."""
+    x, y, r, a = grid(w, h)
+    core = (r <= 0.40).astype(np.float64)
+    halo = np.exp(-np.maximum(r - 0.40, 0) / 0.08) * 0.6
+    al = np.clip(np.maximum(core, halo), 0, 1) * (r <= 1.0)
+    return white(al), al
+
+
+def cell_puff(w, h, rng):
+    """Clean dust / vapor puff: one rounded blob with a hard edge (no noise, no wisps)."""
+    x, y, r, a = grid(w, h)
+    rr = r / (0.86 + 0.07 * np.cos(3.0 * a + 0.9) + 0.035 * np.cos(5.0 * a - 2.0))
+    al = smooth(1.0, 0.84, rr)
+    al = al * (0.6 + 0.4 * smooth(1.0, 0.3, rr))
+    return white(al), al
+
+
 RENDER = {
     "ring_wave": cell_ring_wave,
     "ring_soft": cell_ring_soft,
@@ -494,6 +592,13 @@ RENDER = {
     "ring_tech_hd": cell_ring_tech,
     "ring_fire": cell_ring_fire,
     "flash": cell_flash,
+    "burst": cell_burst,
+    "streak": cell_streak,
+    "chunk": cell_chunk,
+    "dot": cell_dot,
+    "puff": cell_puff,
+    "ring_crisp": cell_ring_crisp,
+    "ring_dust": cell_ring_dust,
 }
 
 

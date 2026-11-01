@@ -22,8 +22,11 @@ import {
   world,
 } from "@minecraft/server";
 import {
+  applySuitMeta,
   baseSuitItemFor,
   beforeSuitOff,
+  chargeSuitUp,
+  suitNotify,
   finalSuitIdForPlayer,
   initSuitSystems,
   isSuitId,
@@ -31,6 +34,7 @@ import {
   onSuitUpComplete,
   openControlPanel,
   recoverWornSuit,
+  suitMetaOf,
   toggleVisor,
 } from "./suit/index.js";
 
@@ -78,6 +82,7 @@ const sneakTaps = new Map();
  * @property {(() => void)[]} [everyTick]
  * @property {number} total
  * @property {number} [damage]
+ * @property {string} [meta] suitMetaOf() snapshot carried by the case
  * @property {import("@minecraft/server").Entity} [caseEntity]
  * @property {boolean} [done]
  */
@@ -270,15 +275,24 @@ function clearArmorSlots(player, keepChest) {
 }
 
 const DAMAGE_PROP = "sym:mk5_damage"; // suit wear survives the trips in and out of the case
+// ...and so do its enchantments, name, lore and keep-on-death (suitMetaOf() JSON snapshot)
+const META_PROP = "sym:mk5_suit_meta";
 
-function suitItem(damage = 0, id = ITEM_SUIT) {
+function suitItem(damage = 0, id = ITEM_SUIT, meta = "") {
   const item = new ItemStack(id, 1);
   safeRun(() => item.setLore(["§7Sym Industries — Mark V", "§bProteção: diamante completa"]));
   safeRun(() => {
     const dur = item.getComponent("minecraft:durability");
     if (dur && damage > 0) dur.damage = Math.min(dur.maxDurability - 1, damage);
   });
+  if (meta) safeRun(() => applySuitMeta(item, meta));
   return item;
+}
+
+/** Store the suit's wear + meta snapshot on a case / stand-in item or on the case entity. */
+function writeCarry(target, damage, meta) {
+  if (damage > 0) safeRun(() => target.setDynamicProperty(DAMAGE_PROP, damage));
+  if (meta) safeRun(() => target.setDynamicProperty(META_PROP, meta));
 }
 
 const REACTOR_LORE = ["§7Usar: §bpainel de controle da Mark V", "§7Agachar + usar: §babrir/fechar o visor"];
@@ -317,20 +331,20 @@ function takeReactor(player) {
   }
 }
 
-function caseItem(damage = 0) {
+function caseItem(damage = 0, meta = "") {
   const item = new ItemStack(ITEM_CASE, 1);
-  if (damage > 0) safeRun(() => item.setDynamicProperty(DAMAGE_PROP, damage));
+  writeCarry(item, damage, meta);
   return item;
 }
 
-function tempItem(id, damage = 0) {
+function tempItem(id, damage = 0, meta = "") {
   // assembling/disassembling stand-ins cannot be moved out of the chest slot or dropped
   const item = new ItemStack(id, 1);
   safeRun(() => {
     item.lockMode = ItemLockMode.slot;
     item.keepOnDeath = true;
   });
-  if (damage > 0) safeRun(() => item.setDynamicProperty(DAMAGE_PROP, damage));
+  writeCarry(item, damage, meta);
   return item;
 }
 
@@ -340,20 +354,24 @@ function storedDamage(holder) {
   return damage;
 }
 
-/** Remove one case from the main hand and return the suit wear it carried. */
+function storedMeta(holder) {
+  const meta = safeRun(() => holder?.getDynamicProperty(META_PROP));
+  return typeof meta === "string" ? meta : "";
+}
+
+/** Remove one case from the main hand and return the suit wear + meta it carried. */
 function takeCaseFromHand(player) {
   const eq = equippable(player);
   const held = eq.getEquipment(EquipmentSlot.Mainhand);
   if (held?.typeId !== ITEM_CASE) return undefined;
-  let damage = 0;
-  safeRun(() => (damage = Number(held.getDynamicProperty(DAMAGE_PROP) ?? 0)));
+  const carry = { damage: storedDamage(held), meta: storedMeta(held) };
   if (held.amount > 1) {
     held.amount -= 1;
     eq.setEquipment(EquipmentSlot.Mainhand, held);
   } else {
     eq.setEquipment(EquipmentSlot.Mainhand, undefined);
   }
-  return damage;
+  return carry;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -361,6 +379,7 @@ function takeCaseFromHand(player) {
 // ---------------------------------------------------------------------------------------------
 
 function startSession(player, kind, steps, totalTicks, everyTick) {
+  /** @type {Session} */
   const session = { player, kind, tick: 0, steps, everyTick, total: totalTicks };
   sessions.set(player.id, session);
   safeRun(() => player.setDynamicProperty(STATE_PROP, kind));
@@ -405,8 +424,9 @@ system.runInterval(() => {
  * @param {number} yaw
  * @param {number} startTick tick (inside the session) when the step on the case begins
  * @param {Array<{at:number, run:() => void}>} steps
+ * @param {Session} carry the session: suit wear + meta from the case (read when used)
  */
-function addSuitUpSteps(player, stand, yaw, startTick, steps, getDamage) {
+function addSuitUpSteps(player, stand, yaw, startTick, steps, carry) {
   const f = flatDir(yaw);
   const r = rightOf(f);
   const at = (local, run) => steps.push({ at: startTick + local, run });
@@ -415,12 +435,12 @@ function addSuitUpSteps(player, stand, yaw, startTick, steps, getDamage) {
   // original timeline τ = local/20 + 1.5 s
 
   SUITUP_STAGE_TICKS.forEach((tick, i) => {
-    if (i > 0) at(tick, () => equippable(player).setEquipment(EquipmentSlot.Chest, tempItem(ASSEMBLING[i], getDamage())));
+    if (i > 0) at(tick, () => equippable(player).setEquipment(EquipmentSlot.Chest, tempItem(ASSEMBLING[i], carry.damage ?? 0, carry.meta)));
   });
   at(0, () => {
     const eq = equippable(player);
     clearArmorSlots(player, false);
-    eq.setEquipment(EquipmentSlot.Chest, tempItem(ASSEMBLING[0], getDamage()));
+    eq.setEquipment(EquipmentSlot.Chest, tempItem(ASSEMBLING[0], carry.damage ?? 0, carry.meta));
     playBody(player, "animation.sym.player.mk5_suitup", 0.3);
     sound(player, "sym.mk5.suitup", stand);
     shot(player, look(0.45, 0.35), P(1.7, 1.25, 0.55), 0.9);
@@ -477,7 +497,7 @@ function addSuitUpSteps(player, stand, yaw, startTick, steps, getDamage) {
   at(278, () => {
     // fully assembled: real armor item (protection 20, skin hidden by the render controllers)
     const eq = equippable(player);
-    eq.setEquipment(EquipmentSlot.Chest, suitItem(getDamage(), finalSuitIdForPlayer(player)));
+    eq.setEquipment(EquipmentSlot.Chest, suitItem(carry.damage ?? 0, finalSuitIdForPlayer(player), carry.meta));
     if (!hasItem(player, ITEM_REACTOR)) {
       if (!eq.getEquipment(EquipmentSlot.Mainhand)) eq.setEquipment(EquipmentSlot.Mainhand, reactorItem());
       else giveOrDrop(player, reactorItem());
@@ -559,15 +579,16 @@ function beginThrowSequence(player) {
 
   at(THROW_RELEASE, () => {
     // the case leaves the hand (if it is no longer there — hotbar switch, dropped — abort)
-    const damage = takeCaseFromHand(player);
-    if (damage === undefined) {
+    const carry = takeCaseFromHand(player);
+    if (carry === undefined) {
       endSession(session);
       return;
     }
-    session.damage = damage;
+    session.damage = carry.damage;
+    session.meta = carry.meta;
     session.caseEntity = dim.spawnEntity(ENTITY_CASE, handPos);
     safeRun(() => session.caseEntity.setRotation({ x: 0, y: yaw }));
-    if (damage > 0) safeRun(() => session.caseEntity.setDynamicProperty(DAMAGE_PROP, damage));
+    writeCarry(session.caseEntity, carry.damage, carry.meta);
     playLater(session.caseEntity, "animation.sym.mk5.case_tumble", true);
     sound(player, "armor.equip_leather", handPos, 1, 0.8);
   });
@@ -611,7 +632,7 @@ function beginThrowSequence(player) {
     safeRun(() => player.teleport(stand, { rotation: { x: 0, y: yaw }, keepVelocity: false }));
     if (session.caseEntity?.isValid) session.caseEntity.remove(); // the suit's own case takes over
   });
-  session.total = addSuitUpSteps(player, stand, yaw, stepTick, steps, () => session.damage ?? 0);
+  session.total = addSuitUpSteps(player, stand, yaw, stepTick, steps, session);
 }
 
 /** Suit-up started by walking onto a case that was placed on the ground earlier. */
@@ -625,6 +646,7 @@ function beginFromPlacedCase(player, caseEntity) {
   const session = startSession(player, "suitup", steps, 0);
   session.caseEntity = caseEntity;
   session.damage = damage;
+  session.meta = storedMeta(caseEntity);
   lockPlayer(player, true);
   clearArmorSlots(player, true);
   safeRun(() =>
@@ -640,7 +662,7 @@ function beginFromPlacedCase(player, caseEntity) {
       if (caseEntity.isValid) caseEntity.remove();
     },
   });
-  session.total = addSuitUpSteps(player, stand, yaw, 4, steps, () => damage);
+  session.total = addSuitUpSteps(player, stand, yaw, 4, steps, session);
 }
 
 /** Sneak + use: put the closed case down on the ground in front of the player. */
@@ -654,12 +676,12 @@ function placeCase(player) {
   }
   const spotXZ = add(player.location, mul(f, dist));
   const spot = { x: spotXZ.x, y: surfaceY(player.dimension, spotXZ.x, spotXZ.z, player.location.y) ?? player.location.y, z: spotXZ.z };
-  const damage = takeCaseFromHand(player);
-  if (damage === undefined) return;
+  const carry = takeCaseFromHand(player);
+  if (carry === undefined) return;
   const ent = player.dimension.spawnEntity(ENTITY_CASE, spot);
   safeRun(() => ent.setRotation({ x: 0, y: yaw }));
   ent.addTag(CASE_TAG_IDLE);
-  if (damage > 0) ent.setDynamicProperty(DAMAGE_PROP, damage);
+  writeCarry(ent, carry.damage, carry.meta);
   playLater(ent, "animation.sym.mk5.case_land");
   sound(player, "armor.equip_netherite", spot, 0.9, 0.75);
   safeRun(() =>
@@ -685,18 +707,20 @@ function beginSuitOff(player) {
   lockPlayer(player, true);
   safeRun(() => player.teleport(stand, { rotation: { x: 0, y: yaw }, keepVelocity: false }));
   let damage = 0;
+  let meta = "";
   at(0, () => {
     const eq = equippable(player);
     const worn = eq.getEquipment(EquipmentSlot.Chest);
     safeRun(() => (damage = worn?.getComponent("minecraft:durability")?.damage ?? 0));
-    eq.setEquipment(EquipmentSlot.Chest, tempItem(DISASSEMBLING[0], damage));
+    meta = safeRun(() => suitMetaOf(worn)) ?? ""; // enchantments, name, lore, keep-on-death
+    eq.setEquipment(EquipmentSlot.Chest, tempItem(DISASSEMBLING[0], damage, meta));
     takeReactor(player);
     playBody(player, "animation.sym.player.mk5_suitoff", 0.3);
     sound(player, "sym.mk5.suitoff", stand);
     shot(player, P(0, 0, 1.6), P(1.2, 0.3, 1.65), 0.8);
   });
   SUITOFF_STAGE_TICKS.forEach((tick, i) => {
-    if (i > 0) at(tick, () => equippable(player).setEquipment(EquipmentSlot.Chest, tempItem(DISASSEMBLING[i], damage)));
+    if (i > 0) at(tick, () => equippable(player).setEquipment(EquipmentSlot.Chest, tempItem(DISASSEMBLING[i], damage, meta)));
   });
   at(40, () => shot(player, P(0, 0, 1.2), P(2.4, 1.9, 1.4), 3.5));
   at(120, () => shot(player, P(0, 0, 1.0), P(-2.2, 2.0, 1.3), 3.5));
@@ -706,7 +730,7 @@ function beginSuitOff(player) {
     const eq = equippable(player);
     eq.setEquipment(EquipmentSlot.Chest, undefined);
     const held = eq.getEquipment(EquipmentSlot.Mainhand);
-    const item = caseItem(damage);
+    const item = caseItem(damage, meta);
     if (!held) eq.setEquipment(EquipmentSlot.Mainhand, item);
     else giveOrDrop(player, item);
     lockPlayer(player, false);
@@ -721,9 +745,8 @@ function beginSuitOff(player) {
 function canStart(player) {
   if (sessions.has(player.id)) return false;
   if (isSuitWorn(player)) {
-    safeRun(() =>
-      player.onScreenDisplay.setActionBar("§eMark V já está vestida — use o painel do Reator Arc para desmontar")
-    );
+    // HUD alert line while the visor HUD is up (the actionbar would overlap it)
+    safeRun(() => suitNotify(player, "§eMark V já vestida — desmonte pelo painel do Reator Arc"));
     return false;
   }
   if (player.getGameMode() === GameMode.Spectator) return false;
@@ -754,7 +777,8 @@ function onUseCase(player) {
   lastUseTick.set(player.id, now);
   if (!canStart(player)) return;
   if (player.isSneaking) placeCase(player);
-  else beginThrowSequence(player);
+  // SPEC 12.2: the suit-up costs 8 % up front; refused = the case stays in the hand
+  else if (safeRun(() => chargeSuitUp(player)) !== false) beginThrowSequence(player);
 }
 
 system.beforeEvents.startup.subscribe((ev) => {
@@ -781,10 +805,10 @@ world.afterEvents.entityHitEntity.subscribe((e) => {
   if (ent?.typeId !== ENTITY_CASE || !ent.hasTag(CASE_TAG_IDLE)) return;
   const player = e.damagingEntity;
   if (player?.typeId !== "minecraft:player") return;
-  let damage = 0;
-  safeRun(() => (damage = Number(ent.getDynamicProperty(DAMAGE_PROP) ?? 0)));
+  const damage = storedDamage(ent);
+  const meta = storedMeta(ent);
   ent.remove();
-  giveOrDrop(player, caseItem(damage));
+  giveOrDrop(player, caseItem(damage, meta));
   sound(player, "armor.equip_leather", player.location, 1, 1.2);
 });
 
@@ -819,6 +843,8 @@ system.runInterval(() => {
         const dz = player.location.z - ent.location.z;
         if (Math.hypot(dx, dz) > 0.7 || Math.abs(player.location.y - ent.location.y) > 0.8) continue;
         if (!player.isOnGround || player.isFlying) continue;
+        // SPEC 12.2: not enough energy -> the case stays on the ground (message throttled)
+        if (safeRun(() => chargeSuitUp(player)) === false) continue;
         ent.removeTag(CASE_TAG_IDLE);
         beginFromPlacedCase(player, ent);
         break; // one case, one suit
@@ -843,23 +869,24 @@ function recover(player) {
     lockPlayer(player, false);
     safeRun(() => player.camera.clear());
     if (isAssembling(chest?.typeId)) {
-      eq.setEquipment(EquipmentSlot.Chest, suitItem(storedDamage(chest), finalSuitIdForPlayer(player)));
+      eq.setEquipment(EquipmentSlot.Chest, suitItem(storedDamage(chest), finalSuitIdForPlayer(player), storedMeta(chest)));
     }
     else if (isDisassembling(chest?.typeId)) {
       eq.setEquipment(EquipmentSlot.Chest, undefined);
-      giveOrDrop(player, caseItem(storedDamage(chest)));
+      giveOrDrop(player, caseItem(storedDamage(chest), storedMeta(chest)));
     }
     safeRun(() => player.setDynamicProperty(STATE_PROP, undefined));
   }
-  // suit variants: a visor / power-down transition item left worn by a reload -> final variant
+  // suit variants: a visor / power-down / power-up transition item or a `_flying` twin left worn
+  // by a reload -> final / non-flying variant (SPEC 11.1)
   safeRun(() => recoverWornSuit(player));
   const container = inventory(player);
   if (!container) return;
   for (let i = 0; i < container.size; i++) {
     const it = container.getItem(i);
     if (!it) continue;
-    if (isAssembling(it.typeId)) container.setItem(i, suitItem(storedDamage(it)));
-    else if (isDisassembling(it.typeId)) container.setItem(i, caseItem(storedDamage(it)));
+    if (isAssembling(it.typeId)) container.setItem(i, suitItem(storedDamage(it), ITEM_SUIT, storedMeta(it)));
+    else if (isDisassembling(it.typeId)) container.setItem(i, caseItem(storedDamage(it), storedMeta(it)));
     else if (isSuitId(it.typeId) && it.typeId !== ITEM_SUIT) {
       // a variant lying in the inventory goes back to the plain suit (damage + enchantments kept)
       const base = safeRun(() => baseSuitItemFor(it));
@@ -900,10 +927,11 @@ world.afterEvents.entitySpawn.subscribe((e) => {
   const stack = ent.getComponent("minecraft:item")?.itemStack;
   if (!stack) return;
   const damage = storedDamage(stack);
+  const meta = storedMeta(stack);
   const replace = isAssembling(stack.typeId)
-    ? suitItem(damage)
+    ? suitItem(damage, ITEM_SUIT, meta)
     : isDisassembling(stack.typeId)
-      ? caseItem(damage)
+      ? caseItem(damage, meta)
       : safeRun(() => baseSuitItemFor(stack));
   if (!replace) return;
   const loc = ent.location;
@@ -919,12 +947,14 @@ world.afterEvents.entityDie.subscribe((e) => {
   if (!session) return;
   if (session.caseEntity?.isValid) {
     session.caseEntity.remove();
-    giveOrDrop(player, caseItem(session.damage ?? 0));
+    giveOrDrop(player, caseItem(session.damage ?? 0, session.meta));
   }
   endSession(session);
 });
 
 world.afterEvents.playerLeave.subscribe((e) => {
+  lastUseTick.delete(e.playerId);
+  sneakTaps.delete(e.playerId);
   const session = sessions.get(e.playerId);
   if (!session) return;
   sessions.delete(e.playerId);
@@ -932,7 +962,7 @@ world.afterEvents.playerLeave.subscribe((e) => {
     const loc = session.caseEntity.location;
     const dim = session.caseEntity.dimension;
     session.caseEntity.remove();
-    safeRun(() => dim.spawnItem(caseItem(session.damage ?? 0), loc));
+    safeRun(() => dim.spawnItem(caseItem(session.damage ?? 0, session.meta), loc));
   }
 });
 
@@ -951,8 +981,9 @@ system.runInterval(() => {
       if (owned) continue;
       const loc = ent.location;
       const damage = storedDamage(ent);
+      const meta = storedMeta(ent);
       ent.remove();
-      safeRun(() => world.getDimension(dim).spawnItem(caseItem(damage), loc));
+      safeRun(() => world.getDimension(dim).spawnItem(caseItem(damage, meta), loc));
     }
   }
 }, 40);

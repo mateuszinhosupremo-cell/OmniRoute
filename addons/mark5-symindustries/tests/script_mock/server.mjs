@@ -18,6 +18,8 @@ export const EntityDamageCause = Object.freeze(
   )
 );
 
+// namespaced ids are "registered"; anything else is an enchantment that no longer exists
+export const EnchantmentTypes = { get: (id) => (typeof id === "string" && id.startsWith("minecraft:") ? { id, maxLevel: 5 } : undefined) };
 export const log = { particles: [], sounds: [], events: [] };
 
 export class MolangVariableMap {
@@ -127,6 +129,17 @@ export class Dimension {
   }
   getBlock() {
     return { typeId: "minecraft:air" };
+  }
+  /** Light at a block (tests set `light` = {total, sky} or `unloaded` = true). Integer coords only. */
+  getLightLevel(loc) {
+    if (this.unloaded) throw new Error("LocationInUnloadedChunkError");
+    if (![loc.x, loc.y, loc.z].every(Number.isInteger)) throw new Error("light: block coordinates expected");
+    return this.light?.total ?? 15;
+  }
+  getSkyLightLevel(loc) {
+    if (this.unloaded) throw new Error("LocationInUnloadedChunkError");
+    if (![loc.x, loc.y, loc.z].every(Number.isInteger)) throw new Error("light: block coordinates expected");
+    return this.light?.sky ?? 15;
   }
   getBlockFromRay(from, dir, opts) {
     const groundY = 64;
@@ -238,7 +251,7 @@ export class Player extends Entity {
     return { x: this.location.x, y: this.location.y + 1.62, z: this.location.z };
   }
   getVelocity() {
-    return { x: 0, y: 0, z: 0 };
+    return { ...(this.velocity ?? { x: 0, y: 0, z: 0 }) };
   }
   getGameMode() {
     return this.gameMode;
@@ -251,14 +264,19 @@ export class Player extends Entity {
     this.knockbacks.push({ ...h, y: v });
   }
   addEffect(id, duration, opts) {
-    this.effects.set(id, { amplifier: opts?.amplifier ?? 0, duration });
+    this.effects.set(id, { amplifier: opts?.amplifier ?? 0, duration, showParticles: opts?.showParticles, at: system.currentTick });
     return undefined;
   }
   removeEffect(id) {
     return this.effects.delete(id);
   }
+  /** Effect with its REMAINING duration (counts down with the ticks like the engine). */
   getEffect(id) {
-    return this.effects.get(id);
+    const e = this.effects.get(id);
+    if (!e) return undefined;
+    const left = e.duration - (system.currentTick - (e.at ?? system.currentTick));
+    if (left <= 0) return undefined;
+    return { ...e, duration: left };
   }
   spawnParticle(id, loc, vars) {
     if (vars !== undefined && !(vars instanceof MolangVariableMap)) throw new Error("molang must be a MolangVariableMap");
@@ -327,10 +345,15 @@ export const world = {
   getAbsoluteTime() {
     return absTime + system.currentTick;
   },
+  timeOfDay: 6000,
+  getTimeOfDay() {
+    return this.timeOfDay;
+  },
   afterEvents: {
     playerButtonInput: new Signal(),
     entityHurt: new Signal(),
     entityDie: new Signal(),
+    playerDimensionChange: new Signal(),
     playerLeave: new Signal(),
     itemUse: new Signal(),
   },

@@ -5,9 +5,13 @@
 // sets the player's motion). slow_falling keeps gravity soft and cancels fall damage.
 // Input: movement stick/WASD (x = +1 LEFT, y = +1 forward), Jump held = up, sneaking = down,
 // sprinting while moving forward = boost. Double-tap Jump toggles the thrusters (input.js).
+// Look (SPEC 11.1): while flying the worn powered variant is swapped to its `_flying` twin, whose
+// attachable carries the geometry flames; every flight end swaps it back. No flame sprites.
+// Creative (SPEC 12.3): while vanilla creative flight is on (player.isFlying) the thrusters run in
+// VISUAL mode: poses, flames, sounds, telemetry and drain, but vanilla physics move the player.
 
 import { ButtonState, GameMode, InputButton, system } from "@minecraft/server";
-import { ANIM, FX, SND, TUNING as T } from "./constants.js";
+import { ANIM, FX, SND, TUNING as T, flyingTwin, groundTwin } from "./constants.js";
 import {
   FLIGHT_CODE,
   approach,
@@ -23,12 +27,14 @@ import {
   vadd,
   vlen,
   vnorm,
+  visualFlightMode,
   vscale,
 } from "./calc.js";
 import { actionbar, flightAnim, molang, quiet, resetFlightAnim, shake, worldParticle, worldSound } from "./fx.js";
-import { clearAlert, pushAlert } from "./hud.js";
+import { clearAlert, hudShowing, notify, pushAlert } from "./hud.js";
 import { spendEnergy } from "./state.js";
 import { flightText } from "./texts.js";
+import { getWornSuit, swapChest } from "./variants.js";
 
 /**
  * @typedef {Object} FlightRuntime
@@ -49,6 +55,7 @@ import { flightText } from "./texts.js";
  * @property {number} speed
  * @property {number} alt
  * @property {boolean} icing
+ * @property {boolean} [visual]                  creative: vanilla flight moves the player (SPEC 12.3)
  */
 
 const DOWN = Object.freeze({ x: 0, y: -1, z: 0 });
@@ -101,54 +108,45 @@ export function isFlying(st) {
 }
 
 /**
+ * Wear the flying twin of the powered final variant (flying = true) or the non-flying one back
+ * (SPEC 11.1). Refreshes st.worn. Temp / offline variants have no twin and are left alone.
+ * @param {import("@minecraft/server").Player} player
+ * @param {import("./state.js").SuitState} st
+ * @param {boolean} flying
+ */
+export function wearFlightVariant(player, st, flying) {
+  const worn = getWornSuit(player);
+  if (!worn) return;
+  const want = flying ? flyingTwin(worn.id) ?? worn.id : groundTwin(worn.id);
+  if (want !== worn.id && swapChest(player, want)) st.worn = getWornSuit(player);
+  else st.worn = worn;
+}
+
+/**
  * Why the thrusters cannot start now ("" = they can).
  * @param {import("@minecraft/server").Player} player
  * @param {import("./state.js").SuitState} st
+ * @param {{visual?: boolean}} [opts] visual: creative flight (vanilla flight is on, by definition)
  */
-export function flightBlocker(player, st) {
+export function flightBlocker(player, st, opts = {}) {
   const worn = st.worn;
   if (!worn || st.busy) return "§cVista a Mark V para voar";
-  if (!worn.powered) return "§cSem energia §7— propulsores offline";
+  if (!worn.powered || st.offline) return "§cSem energia §7— propulsores offline";
+  if (worn.temp || st.transition) return "§7Aguarde o visor terminar o movimento...";
   if (st.energy < T.FLIGHT_MIN_ENERGY) return `§cEnergia insuficiente para voar §7(mínimo ${Math.round((T.FLIGHT_MIN_ENERGY / T.ENERGY_MAX) * 100)}%)`;
   const gm = quiet(() => player.getGameMode());
   if (gm === GameMode.Spectator) return "§cIndisponível no modo espectador";
   if (player.isInWater || player.isSwimming || inLava(player)) return "§cPROPULSORES INOPERANTES SUBMERSO";
   if (quiet(() => player.getComponent("minecraft:riding"))) return "§cDesmonte antes de decolar";
   if (player.isGliding) return "§cNão é possível decolar planando";
-  // vanilla flight (creative / mayfly) must be off first; in creative the double-tap is left to
-  // vanilla (gestureToggle) and the menu "Decolar" works once the player is not vanilla-flying
-  if (player.isFlying) return "§cDesative o voo atual primeiro";
+  // vanilla flight (creative / mayfly): our thrusters follow it in visual mode (tickCreative)
+  if (player.isFlying && !opts.visual) return "§cDesative o voo atual primeiro";
   return "";
 }
 
-/**
- * Start the thrusters (from the ground: takeoff blast).
- * @param {import("@minecraft/server").Player} player
- * @param {import("./state.js").SuitState} st
- * @returns {boolean}
- */
-export function engage(player, st, tick) {
-  if (st.flight) return true;
-  const why = flightBlocker(player, st);
-  if (why) {
-    actionbar(player, why);
-    return false;
-  }
-  if (!spendEnergy(st, T.TAKEOFF_COST)) {
-    actionbar(player, "§cEnergia insuficiente para decolar");
-    return false;
-  }
-  const loc = player.location;
-  const dim = player.dimension;
-  const agl = groundDistance(player, 4);
-  const grounded = player.isOnGround || (agl !== undefined && agl < 1.6);
-  let v = { x: 0, y: T.TAKEOFF_IMPULSE, z: 0 };
-  if (!grounded) {
-    const cur = quiet(() => player.getVelocity()) ?? { x: 0, y: 0, z: 0 };
-    v = { x: clamp(cur.x, -1.5, 1.5), y: clamp(cur.y, -1, 1), z: clamp(cur.z, -1.5, 1.5) };
-  }
-  /** @type {FlightRuntime} */
-  const f = {
+/** @returns {FlightRuntime} */
+function newRuntime(tick, v, grounded, agl, alt) {
+  return {
     mode: "hover",
     v,
     start: tick,
@@ -164,10 +162,40 @@ export function engage(player, st, tick) {
     agl,
     aglTick: tick,
     speed: vlen(v),
-    alt: loc.y,
+    alt,
     icing: false,
   };
+}
+
+/**
+ * Start the thrusters (from the ground: takeoff blast).
+ * @param {import("@minecraft/server").Player} player
+ * @param {import("./state.js").SuitState} st
+ * @returns {boolean}
+ */
+export function engage(player, st, tick) {
+  if (st.flight) return true;
+  const why = flightBlocker(player, st);
+  if (why) {
+    notify(player, st, why);
+    return false;
+  }
+  if (!spendEnergy(st, T.TAKEOFF_COST)) {
+    notify(player, st, "§cEnergia insuficiente para decolar");
+    return false;
+  }
+  const loc = player.location;
+  const dim = player.dimension;
+  const agl = groundDistance(player, 4);
+  const grounded = player.isOnGround || (agl !== undefined && agl < 1.6);
+  let v = { x: 0, y: T.TAKEOFF_IMPULSE, z: 0 };
+  if (!grounded) {
+    const cur = quiet(() => player.getVelocity()) ?? { x: 0, y: 0, z: 0 };
+    v = { x: clamp(cur.x, -1.5, 1.5), y: clamp(cur.y, -1, 1), z: clamp(cur.z, -1.5, 1.5) };
+  }
+  const f = newRuntime(tick, v, grounded, agl, loc.y);
   st.flight = f;
+  wearFlightVariant(player, st, true);
   quiet(() => player.applyKnockback({ x: v.x, z: v.z }, v.y));
   refreshSlowFall(player, 40);
   worldSound(dim, SND.THRUSTER_START, loc, 1);
@@ -184,7 +212,55 @@ export function engage(player, st, tick) {
 }
 
 /**
- * Stop flying.
+ * Start the VISUAL flight that follows vanilla creative flight (SPEC 12.3): no takeoff cost or
+ * impulse, no knockback ever; the flight drain still runs.
+ * @param {import("@minecraft/server").Player} player
+ * @param {import("./state.js").SuitState} st
+ * @returns {boolean}
+ */
+export function engageVisual(player, st, tick) {
+  if (st.flight) return true;
+  if (flightBlocker(player, st, { visual: true })) return false;
+  const loc = player.location;
+  const v = quiet(() => player.getVelocity()) ?? { x: 0, y: 0, z: 0 };
+  const f = newRuntime(tick, { x: v.x, y: v.y, z: v.z }, false, groundDistance(player, 64), loc.y);
+  f.visual = true;
+  st.flight = f;
+  wearFlightVariant(player, st, true);
+  worldSound(player.dimension, SND.THRUSTER_START, loc, 0.8);
+  flightAnim(player, ANIM.HOVER, true, FLIGHT_BLEND_OUT);
+  f.anim = ANIM.HOVER;
+  pushAlert(st, "i", "PROPULSORES ONLINE — VOO CRIATIVO", 40);
+  return true;
+}
+
+/**
+ * Creative flight watcher (every tick, before tickFlight): vanilla flight on + powered suit ->
+ * visual flight. After a refusal / cut (low energy, water...) it waits for vanilla flight to end.
+ * @param {import("@minecraft/server").Player} player
+ * @param {import("./state.js").SuitState} st
+ */
+export function tickCreative(player, st, tick) {
+  if (!player.isFlying) {
+    st.visualLatch = false;
+    return;
+  }
+  if (st.flight || st.visualLatch) return;
+  const worn = st.worn;
+  if (!worn || st.busy || !worn.powered || st.offline || worn.temp || st.transition) return;
+  if (quiet(() => player.getGameMode()) === GameMode.Spectator) return;
+  const why = flightBlocker(player, st, { visual: true });
+  if (why) {
+    // vanilla keeps flying: we only warn (once per vanilla flight)
+    st.visualLatch = true;
+    notify(player, st, why);
+    return;
+  }
+  engageVisual(player, st, tick);
+}
+
+/**
+ * Stop flying (every end path: the flying variant is swapped back first).
  * @param {import("@minecraft/server").Player} player
  * @param {import("./state.js").SuitState} st
  * @param {{fall?: boolean, hero?: boolean, silent?: boolean, message?: string}} [opts]
@@ -197,6 +273,9 @@ export function stop(player, st, opts = {}) {
   clearAlert(st, "emerg");
   clearAlert(st, "icing");
   if (!player || !quiet(() => player.isValid)) return;
+  wearFlightVariant(player, st, false);
+  // a visual flight cut while vanilla still flies must not restart on the next tick
+  if (f.visual && player.isFlying) st.visualLatch = true;
   const loc = player.location;
   const dim = player.dimension;
   if (opts.hero) {
@@ -209,12 +288,14 @@ export function stop(player, st, opts = {}) {
     resetFlightAnim(player);
   }
   if (!opts.silent) worldSound(dim, SND.THRUSTER_STOP, loc, 0.9);
-  if (opts.fall) quiet(() => player.removeEffect("slow_falling"));
-  else refreshSlowFall(player, 60);
-  if (opts.message) actionbar(player, opts.message);
+  if (!f.visual) {
+    if (opts.fall) quiet(() => player.removeEffect("slow_falling"));
+    else refreshSlowFall(player, 60);
+  }
+  if (opts.message) notify(player, st, opts.message);
 }
 
-/** Forget the flight without touching the (dead / leaving) player. */
+/** Forget the flight without touching the (dead / leaving) player (the variant is fixed later). */
 export function abort(st) {
   st.flight = undefined;
   clearAlert(st, "emerg");
@@ -223,6 +304,10 @@ export function abort(st) {
 
 /** Double-tap Jump / menu. @returns {boolean} flying afterwards */
 export function toggle(player, st, tick) {
+  if (st.flight?.visual) {
+    notify(player, st, "§7Voo criativo §8— toque duas vezes em pular para pousar");
+    return true;
+  }
   if (st.flight) {
     stop(player, st, { message: "§7Propulsores desligados" });
     return false;
@@ -235,14 +320,15 @@ export const CREATIVE_SETTLE_TICKS = 2;
 
 /**
  * Double-tap Jump gesture. Survival (and landing from our flight): plain toggle. Creative: the
- * same double-tap toggles vanilla creative flight, so ours is NOT engaged while the player is
- * vanilla-flying (vanilla is turning it off) nor when vanilla switches it on with this double-tap
- * (checked again CREATIVE_SETTLE_TICKS later). The menu "Decolar" still engages normally.
+ * same double-tap toggles vanilla creative flight, which our visual flight follows (tickCreative),
+ * so ours is NOT engaged while the player is vanilla-flying nor when vanilla switches it on with
+ * this double-tap (checked again CREATIVE_SETTLE_TICKS later). The menu "Decolar" still engages.
  * @param {import("@minecraft/server").Player} player
  * @param {import("./state.js").SuitState} st
  * @returns {boolean} flying (ours) afterwards
  */
 export function gestureToggle(player, st, tick) {
+  if (st.flight?.visual) return true; // vanilla's own double-tap ends it (isFlying -> false)
   if (st.flight || quiet(() => player.getGameMode()) !== GameMode.Creative) return toggle(player, st, tick);
   if (player.isFlying) return false;
   system.runTimeout(() => {
@@ -267,6 +353,92 @@ export function tickHeat(st) {
 }
 
 /**
+ * Physics of one (non-visual) flight tick. @returns {boolean} false = the flight ended (landed)
+ * @param {import("@minecraft/server").Player} player
+ * @param {import("./state.js").SuitState} st
+ * @param {FlightRuntime} f
+ */
+function physicsTick(player, st, f, tick) {
+  const loc = player.location;
+  const rot = player.getRotation();
+  // emergency landing once energy is almost gone (no control, no flight drain)
+  if (f.mode !== "emergency" && st.energy <= T.EMERGENCY_AT) {
+    f.mode = "emergency";
+    f.holdY = undefined;
+    // the sticky HUD alert below says it when the HUD is up
+    if (!hudShowing(st)) actionbar(player, "§c§lPOUSO DE EMERGÊNCIA§r §7— energia crítica");
+  }
+  const emergency = f.mode === "emergency";
+  if (emergency) pushAlert(st, "c", "POUSO DE EMERGÊNCIA", 8, "emerg");
+  // input
+  const move = quiet(() => player.inputInfo.getMovementVector()) ?? { x: 0, y: 0 };
+  const jumpHeld = quiet(() => player.inputInfo.getButtonState(InputButton.Jump) === ButtonState.Pressed);
+  const up = !emergency && (!!jumpHeld || player.isJumping);
+  const down = !emergency && player.isSneaking;
+  const sprint = player.isSprinting;
+  if (move.y <= 0.5 || st.overheated) f.boostLatch = false;
+  else if (sprint) f.boostLatch = true;
+  // landing (uses the velocity of the previous tick = touchdown speed)
+  const impact = vlen(f.v);
+  if (tick - f.start > 10 && player.isOnGround) {
+    const idle = Math.hypot(move.x, move.y) < 0.2 && !up;
+    f.groundIdle = idle ? f.groundIdle + 1 : 0;
+    if (emergency || f.v.y < -0.05 || down || f.groundIdle >= 6) {
+      stop(player, st, { hero: !emergency && impact >= T.SUPERHERO_SPEED });
+      if (emergency) notify(player, st, "§6Pouso de emergência concluído");
+      return false;
+    }
+  } else {
+    f.groundIdle = 0;
+  }
+  const mode = emergency ? "emergency" : flightMode({ move, sprint, boostLatch: f.boostLatch, overheated: st.overheated });
+  if (mode !== "boost") f.boomDone = false;
+  f.mode = mode;
+  if (mode === "hover" && !up && !down) {
+    if (f.holdY === undefined && Math.abs(f.v.y) < 0.06) f.holdY = loc.y;
+  } else {
+    f.holdY = undefined;
+  }
+  f.alt = loc.y;
+  f.icing = loc.y > T.ICING_Y;
+  if (f.icing && !emergency) pushAlert(st, "w", "FORMAÇÃO DE GELO — ALTITUDE CRÍTICA", 10, "icing");
+  else clearAlert(st, "icing");
+  const view = quiet(() => player.getViewDirection()) ?? flatForward(rot.y);
+  const target = flightTarget({ mode, move, up, down, view, yaw: rot.y, icing: f.icing, v: f.v, y: loc.y, holdY: f.holdY, tick });
+  f.v = mode === "emergency" ? target : approach(f.v, target, flightAccel(mode));
+  quiet(() => player.applyKnockback({ x: f.v.x, z: f.v.z }, f.v.y));
+  f.speed = vlen(f.v);
+  f.thrust = thrustLevel(mode, f.speed, up);
+  if ((tick - f.start) % 10 === 0) refreshSlowFall(player, 40);
+  return true;
+}
+
+/**
+ * One VISUAL flight tick (SPEC 12.3): mode and telemetry from the real velocity, no knockback.
+ * @returns {boolean} false = the flight ended
+ * @param {import("@minecraft/server").Player} player
+ * @param {import("./state.js").SuitState} st
+ * @param {FlightRuntime} f
+ */
+function visualTick(player, st, f, tick) {
+  if (st.energy <= T.EMERGENCY_AT) {
+    // cannot force a landing in creative: the thrusters just go dark
+    stop(player, st, { message: "§c§lENERGIA CRÍTICA§r §7— propulsores desligados" });
+    return false;
+  }
+  const v = quiet(() => player.getVelocity()) ?? { x: 0, y: 0, z: 0 };
+  const mode = visualFlightMode(v, player.isSprinting, st.overheated);
+  if (mode !== "boost") f.boomDone = false;
+  f.mode = mode;
+  f.v = { x: v.x, y: v.y, z: v.z };
+  f.alt = player.location.y;
+  f.icing = false;
+  f.speed = vlen(f.v);
+  f.thrust = thrustLevel(mode, f.speed, player.isJumping);
+  return true;
+}
+
+/**
  * One flight tick.
  * @param {import("@minecraft/server").Player} player
  * @param {import("./state.js").SuitState} st
@@ -279,6 +451,12 @@ export function tickFlight(player, st, tick) {
   if (!worn.powered || st.energy <= 0) {
     return stop(player, st, { fall: true, message: "§c§lSEM ENERGIA§r §7— propulsores desligados" });
   }
+  if (f.visual) {
+    if (!player.isFlying) return stop(player, st); // vanilla creative flight ended
+  } else if (player.isFlying) {
+    f.visual = true; // vanilla creative flight took over: follow it
+    f.holdY = undefined;
+  }
   if (player.isInWater || player.isSwimming) {
     pushAlert(st, "w", "PROPULSORES INOPERANTES SUBMERSO", 60);
     return stop(player, st, { message: "§cPROPULSORES INOPERANTES SUBMERSO" });
@@ -287,99 +465,31 @@ export function tickFlight(player, st, tick) {
   if (gm === GameMode.Spectator || player.isGliding || quiet(() => player.getComponent("minecraft:riding"))) {
     return stop(player, st);
   }
-
+  if (!(f.visual ? visualTick(player, st, f, tick) : physicsTick(player, st, f, tick))) return;
+  const mode = f.mode;
+  const emergency = mode === "emergency";
   const loc = player.location;
   const rot = player.getRotation();
   const dim = player.dimension;
-
-  // emergency landing once energy is almost gone (no control, no flight drain)
-  if (f.mode !== "emergency" && st.energy <= T.EMERGENCY_AT) {
-    f.mode = "emergency";
-    f.holdY = undefined;
-    actionbar(player, "§c§lPOUSO DE EMERGÊNCIA§r §7— energia crítica");
-  }
-  const emergency = f.mode === "emergency";
-  if (emergency) pushAlert(st, "c", "POUSO DE EMERGÊNCIA", 8, "emerg");
-
-  // input
-  const move = quiet(() => player.inputInfo.getMovementVector()) ?? { x: 0, y: 0 };
-  const jumpHeld = quiet(() => player.inputInfo.getButtonState(InputButton.Jump) === ButtonState.Pressed);
-  const up = !emergency && (!!jumpHeld || player.isJumping);
-  const down = !emergency && player.isSneaking;
-  const sprint = player.isSprinting;
-  if (move.y <= 0.5 || st.overheated) f.boostLatch = false;
-  else if (sprint) f.boostLatch = true;
-
-  // landing (uses the velocity of the previous tick = touchdown speed)
-  const impact = vlen(f.v);
-  if (tick - f.start > 10 && player.isOnGround) {
-    const idle = Math.hypot(move.x, move.y) < 0.2 && !up;
-    f.groundIdle = idle ? f.groundIdle + 1 : 0;
-    if (emergency || f.v.y < -0.05 || down || f.groundIdle >= 6) {
-      if (emergency) actionbar(player, "§6Pouso de emergência concluído");
-      return stop(player, st, { hero: !emergency && impact >= T.SUPERHERO_SPEED });
-    }
-  } else {
-    f.groundIdle = 0;
-  }
-
-  const mode = emergency ? "emergency" : flightMode({ move, sprint, boostLatch: f.boostLatch, overheated: st.overheated });
-  if (mode !== "boost") f.boomDone = false;
-  f.mode = mode;
-  if (mode === "hover" && !up && !down) {
-    if (f.holdY === undefined && Math.abs(f.v.y) < 0.06) f.holdY = loc.y;
-  } else {
-    f.holdY = undefined;
-  }
-
-  f.alt = loc.y;
-  f.icing = loc.y > T.ICING_Y;
-  if (f.icing && !emergency) pushAlert(st, "w", "FORMAÇÃO DE GELO — ALTITUDE CRÍTICA", 10, "icing");
-  else clearAlert(st, "icing");
-
-  const view = quiet(() => player.getViewDirection()) ?? flatForward(rot.y);
-  const target = flightTarget({ mode, move, up, down, view, yaw: rot.y, icing: f.icing, v: f.v, y: loc.y, holdY: f.holdY, tick });
-  f.v = mode === "emergency" ? target : approach(f.v, target, flightAccel(mode));
-  quiet(() => player.applyKnockback({ x: f.v.x, z: f.v.z }, f.v.y));
-  f.speed = vlen(f.v);
-  f.thrust = thrustLevel(mode, f.speed, up);
-
-  if ((tick - f.start) % 10 === 0) refreshSlowFall(player, 40);
   if (tick - f.aglTick >= 4) {
     f.agl = groundDistance(player, 64);
     f.aglTick = tick;
   }
-
   // body pose (every loop blends out over FLIGHT_BLEND_OUT so cruise <-> boost is smooth)
   const want = mode === "boost" ? ANIM.BOOST : mode === "cruise" ? ANIM.FLY : ANIM.HOVER;
   if (tick >= f.animLockUntil && want !== f.anim) {
     flightAnim(player, want, true, FLIGHT_BLEND_OUT);
     f.anim = want;
   }
-
-  // thrusters: flames at boots and palms (everyone sees them). Positions and flame directions
-  // follow the body pose (the flames leave along the limbs); `vel` (the commanded velocity,
-  // blocks/tick) makes the sprites travel with the suit instead of trailing behind at speed.
-  const nz = flamePose(loc, rot, f);
-  const vel = { x: f.v.x, y: f.v.y, z: f.v.z };
-  const power = clamp(f.thrust, 0.1, 1);
-  if (!emergency || tick % 3 !== 0) {
-    const vb = molang({ dir: nz.bootDir, power, vel });
-    worldParticle(dim, FX.THRUST, nz.bootL, vb);
-    worldParticle(dim, FX.THRUST, nz.bootR, vb);
-    worldParticle(dim, FX.THRUST, nz.palmL, molang({ dir: nz.palmDirL, power: power * 0.75, vel }));
-    worldParticle(dim, FX.THRUST, nz.palmR, molang({ dir: nz.palmDirR, power: power * 0.75, vel }));
+  // the flames are geometry on the `_flying` variant (SPEC 11.1); while boosting a thin contrail
+  // leaves each boot every tick (SPEC 12.4). `vel` (blocks/tick) makes the segment travel with
+  // the suit instead of trailing behind at speed.
+  if (mode === "boost") {
+    const nz = flamePose(loc, rot, f);
+    const vt = molang({ dir: nz.bootDir, vel: { x: f.v.x, y: f.v.y, z: f.v.z } });
+    worldParticle(dim, FX.TRAIL, nz.bootL, vt);
+    worldParticle(dim, FX.TRAIL, nz.bootR, vt);
   }
-  if (tick % 2 === 0) {
-    const g = molang({ power, vel });
-    for (const p of [nz.bootL, nz.bootR, nz.palmL, nz.palmR]) worldParticle(dim, FX.THRUST_GLOW, p, g);
-  }
-  if (mode === "boost" && tick % 3 === 0) {
-    const vs = molang({ dir: nz.bootDir });
-    worldParticle(dim, FX.SMOKE, nz.bootL, vs);
-    worldParticle(dim, FX.SMOKE, nz.bootR, vs);
-  }
-
   // engine sound: replayed every 18 ticks a little ahead on the flight path so the pilot does
   // not leave it behind at high speed
   if (tick >= f.nextSound) {
@@ -387,7 +497,6 @@ export function tickFlight(player, st, tick) {
     const id = mode === "boost" ? SND.THRUSTER_BOOST : SND.THRUSTER_LOOP;
     worldSound(dim, id, vadd(loc, vscale(f.v, 9)), SOUND_VOLUME[mode] ?? 0.8, emergency ? 0.75 : 1);
   }
-
   // sonic boom when the boost breaks through
   if (mode === "boost" && !f.boomDone && f.speed >= T.SONIC_BOOM_SPEED && tick - f.lastBoom >= T.SONIC_BOOM_COOLDOWN) {
     f.boomDone = true;

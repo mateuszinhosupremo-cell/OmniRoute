@@ -4,9 +4,9 @@
 // vanilla crosshair.
 
 import { HudElement, HudVisibility, system } from "@minecraft/server";
-import { encodeHud, hiddenHudString, utf8Length } from "./codec.js";
+import { encodeHud, hiddenHudString, stripFormat, utf8Length } from "./codec.js";
 import { SND, TUNING } from "./constants.js";
-import { playerSound, quiet } from "./fx.js";
+import { actionbar, playerSound, quiet } from "./fx.js";
 import { alertText } from "./texts.js";
 
 export { encodeHud, hiddenHudString, utf8Length };
@@ -51,6 +51,42 @@ export function pushAlert(st, type, text, duration = 60, key = undefined) {
     }
     q.splice(worst, 1);
   }
+}
+
+/**
+ * The main HUD (mode 1) is on screen right now: no boot / power-failure overlay.
+ * @param {import("./state.js").SuitState} st
+ */
+export function hudShowing(st, tick = system.currentTick) {
+  const h = st.hud;
+  return !!st.hudActive && h.on && tick >= h.bootUntil && tick >= h.failUntil;
+}
+
+/** Alert type of a status message from its colour: §c§l critical, §c / §6 warning, else info. */
+export function notifyType(text) {
+  const s = String(text ?? "");
+  if (s.startsWith("§c§l")) return "c";
+  if (s.startsWith("§c") || s.startsWith("§6")) return "w";
+  return "i";
+}
+
+/**
+ * Status / in-flight message: on the HUD alert line while the main HUD is showing (the actionbar
+ * text would overlap the flight panel), otherwise the actionbar.
+ * @param {import("@minecraft/server").Player} player
+ * @param {import("./state.js").SuitState|undefined} st
+ * @param {string} text  actionbar text (§ colours allowed)
+ * @param {{type?: "i"|"w"|"c", duration?: number, key?: string}} [opts]
+ * @returns {"alert"|"actionbar"}
+ */
+export function notify(player, st, text, opts = {}) {
+  if (st && hudShowing(st)) {
+    const plain = stripFormat(String(text ?? "")).replace(/\s+/g, " ").trim().toUpperCase();
+    pushAlert(st, opts.type ?? notifyType(text), plain, opts.duration ?? 50, opts.key);
+    return "alert";
+  }
+  actionbar(player, text);
+  return "actionbar";
 }
 
 /** Remove a sticky alert. */

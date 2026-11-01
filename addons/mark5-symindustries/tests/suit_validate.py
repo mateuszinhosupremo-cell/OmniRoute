@@ -75,7 +75,7 @@ for p in glob.glob(os.path.join(RP, "animations", "*.json")):
 item_ids = set(items)
 
 # ------------------------------------------------------------------ 2. variant table
-for vid, (prot, tex, extra_key, extra_anim) in C.VARIANTS.items():
+for vid, (prot, tex, extra_keys) in C.VARIANTS.items():
     it = items.get(vid)
     check(it is not None, "missing BP item %s" % vid)
     check(vid in atts, "missing attachable %s" % vid)
@@ -103,15 +103,26 @@ for vid, (prot, tex, extra_key, extra_anim) in C.VARIANTS.items():
         check(desc["materials"]["default"] == "entity_emissive_alpha", "%s material" % vid)
         animate = desc["scripts"]["animate"]
         extras = [e for e in animate if isinstance(e, dict) and set(e) & set(C.EXTRA_ANIM_KEYS)]
-        if extra_key:
-            check(desc["animations"].get(extra_key) == extra_anim, "%s extra anim id" % vid)
-            check(extras == [{extra_key: C.WORN_CONDITION}], "%s extra animate entry" % vid)
-        else:
-            check(not extras and not set(desc["animations"]) & set(C.EXTRA_ANIM_KEYS), "%s has no extra" % vid)
+        check(extras == [{k: C.EXTRA_CONDITION[k]} for k in extra_keys], "%s extra animate entries" % vid)
+        for k in extra_keys:
+            check(desc["animations"].get(k) == C.EXTRA_ANIMS[k], "%s extra anim id %s" % (vid, k))
+        check(set(desc["animations"]) & set(C.EXTRA_ANIM_KEYS) == set(extra_keys), "%s extra anim set" % vid)
         base = atts[C.BASE_ID]["minecraft:attachable"]["description"]
         for k in ("held", "hidden", "first_person", "first_person_busy_hand", "worn"):
             check(desc["animations"][k] == base["animations"][k], "%s anim %s like base" % (vid, k))
-        check(desc["render_controllers"] == base["render_controllers"], "%s rc like base" % vid)
+        # SPEC 11.1: the flying variants add the flame pass (second geometry + second controller)
+        flames = vid in C.FLAMES_VARIANTS
+        check(desc["render_controllers"] == ["controller.render.sym_mk5"] + ([C.FLAMES_RC] if flames else []),
+              "%s render controllers" % vid)
+        check(desc["geometry"].get("flames") == (C.FLAMES_GEOMETRY if flames else None), "%s flames geometry" % vid)
+        check(desc["textures"].get("flames") == (C.FLAMES_TEXTURE if flames else None), "%s flames texture" % vid)
+        check(("flames_flicker" in extra_keys) == flames and ("flames_hidden" in extra_keys) == flames,
+              "%s flame clips" % vid)
+        # SPEC 14.2: exactly one faceplate pin on every non-transition worn variant, none on the
+        # *_opening / *_closing clips (their own transition animation owns the pose).
+        pin = C.PINNED[vid]
+        pins = [k for k in extra_keys if k in ("visor_shut", "visor_up")]
+        check(pins == ([pin] if pin else []), "%s faceplate pin: %s (want %s)" % (vid, pins, pin))
 
 # every attachable has a matching item and vice versa (for wearable sym items)
 for aid in atts:
@@ -168,8 +179,13 @@ def geo_bones(path, ident):
 
 
 mk5_bones = geo_bones(os.path.join(RP, "models", "entity", "sym_mk5.geo.json"), "geometry.sym.mk5")
+FLAMES_GEO_PATH = os.path.join(RP, "models", "entity", "sym_mk5_flames.geo.json")
+flame_bones = geo_bones(FLAMES_GEO_PATH, C.FLAMES_GEOMETRY)
+mk5_bones |= flame_bones
 tony_bones = geo_bones(os.path.join(RP, "models", "entity", "sym_tony_stark.geo.json"), "geometry.sym.tony_stark")
-NEW_ATT = ["animation.sym.mk5." + n for n in ("visor_opened", "visor_opening", "visor_closing", "eyes_boot", "eyes_shutdown")]
+NEW_ATT = ["animation.sym.mk5." + n for n in ("visor_opened", "visor_opening", "visor_closing", "eyes_boot",
+                                              "eyes_shutdown", "visor_shut", "visor_up", "flames_flicker",
+                                              "flames_hidden")]
 NEW_PLAYER = ["animation.sym.player." + n for n in
               ("mk5_hover", "mk5_fly", "mk5_boost", "mk5_takeoff", "mk5_land", "mk5_flight_reset", "paperdoll_spin")]
 for n in NEW_ATT:
@@ -184,6 +200,51 @@ check(anims["animation.sym.player.mk5_flight_reset"].get("bones", {}) == {}, "re
 for n, length in (("visor_opening", 0.8), ("visor_closing", 0.8), ("eyes_boot", 0.9), ("eyes_shutdown", 1.2)):
     a = anims["animation.sym.mk5." + n]
     check(a["loop"] == "hold_on_last_frame" and a["animation_length"] == length, "%s length/loop" % n)
+
+
+def final_scale(aid, bone):
+    ch = anims[aid]["bones"][bone]["scale"]
+    v = ch[max(ch, key=float)]
+    return v["post"] if isinstance(v, dict) else v
+
+
+# SPEC 11.1: sym:mark_5 lost eyes_boot, so visor_closing must light the eyes itself (flicker on)
+check("eyes_boot" not in C.VARIANTS[C.BASE_ID][2], "sym:mark_5 must not carry eyes_boot any more")
+check("eyes_boot" in C.VARIANTS["sym:mark_5_powerup"][2], "sym:mark_5_powerup boots the eyes")
+closing_eyes = anims["animation.sym.mk5.visor_closing"]["bones"]["mk5_eyes"]["scale"]
+check(final_scale("animation.sym.mk5.visor_closing", "mk5_eyes") == [1, 1, 1], "visor_closing ends eyes on")
+check(len([k for k in closing_eyes if float(k) >= 0.55]) >= 4, "visor_closing eyes flicker-on at the end")
+
+# SPEC 14.2: the two pins hold exactly the faceplate bones, eyes only on the open pose
+FACE = {"mk5_mask", "mk5_left_mask", "mk5_right_mask", "mk5_mainframe", "mk5_upper_face",
+        "mk5_lower_face", "mk5_lower_face_left", "mk5_lower_face_right"}
+shut, up = anims["animation.sym.mk5.visor_shut"], anims["animation.sym.mk5.visor_up"]
+check(shut["loop"] is True and up["loop"] is True, "visor pins loop")
+check({b.lower() for b in shut["bones"]} == FACE, "visor_shut bone set")
+check({b.lower() for b in up["bones"]} == FACE | {"mk5_eyes"}, "visor_up bone set")
+check("mk5_eyes" not in shut["bones"], "visor_shut must not touch the eyes")
+for b, ch in shut["bones"].items():
+    check(ch == {"rotation": [0, 0, 0], "position": [0, 0, 0], "scale": [1, 1, 1]}, "visor_shut %s rest" % b)
+check(up["bones"]["mk5_mask"]["rotation"] == [-75, 0, 0], "visor_up mask rotation")
+check(up["bones"]["mk5_mask"]["position"] == [0, 5, 3], "visor_up mask position")
+check(up["bones"]["mk5_eyes"]["scale"] == [0, 0, 0], "visor_up hides the eyes")
+for b in ("mk5_Left_mask", "mk5_Right_mask"):
+    check(up["bones"][b] == {"rotation": [0, 0, 0], "position": [0, 0, 0], "scale": [1, 1, 1]},
+          "visor_up %s at rest" % b)
+
+# SPEC 11.1: flame clips drive exactly the four nozzle bones
+for n, want in (("flames_flicker", True), ("flames_hidden", False)):
+    bones = anims["animation.sym.mk5." + n]["bones"]
+    check(set(bones) == set(C.FLAME_BONES), "%s bone set" % n)
+    check(anims["animation.sym.mk5." + n]["loop"] is True, "%s loops" % n)
+    for b, ch in bones.items():
+        check(set(ch) == {"scale"}, "%s %s: only scale" % (n, b))
+        if want:
+            check(all(isinstance(v, str) and "math.sin" in v for v in ch["scale"]), "%s %s flickers" % (n, b))
+        else:
+            check(ch["scale"] == [0, 0, 0], "%s %s hidden" % (n, b))
+check(len({tuple(v["scale"]) for v in anims["animation.sym.mk5.flames_flicker"]["bones"].values()}) == 4,
+      "flames_flicker: the four nozzles must use different phases")
 
 # existing animations untouched (deep equality, order preserved)
 for rel in ("sym_mk5.animation.json", "sym_mk5_player.animation.json"):
@@ -245,6 +306,72 @@ for n in NEW_PLAYER[:5]:
                 check("variable.is_first_person" in s, "%s %s: channel not gated for first person" % (n, bone))
                 if bone == "root":
                     check("variable.is_paperdoll" in s, "%s root: not gated for paper doll" % n)
+
+# SPEC 14.1: the helmet-tilt bug. Vanilla look_at_target is relative to the ENTITY, so a flight
+# animation must never compensate the root tilt on `head` (that pitched the helmet up to 75 deg
+# backwards in the user's video). No `this` on head, and no head value above 15 deg.
+HEAD_LIMIT = 15.0
+NUM = re.compile(r"-?\d+(?:\.\d+)?")
+for n in NEW_PLAYER[:5]:
+    head = anims[n].get("bones", {}).get("head")
+    if n in ("animation.sym.player.mk5_fly", "animation.sym.player.mk5_boost"):
+        check(head is None, "%s must not animate `head` at all (SPEC 14.1)" % n)
+        continue
+    if head is None:
+        continue
+
+    def head_numbers(node, out):
+        if isinstance(node, str):
+            check(not re.search(r"\bthis\b", node), "%s: head channel reads `this` (SPEC 14.1)" % n)
+            out += [float(x) for x in NUM.findall(re.sub(r"variable\.[a-z_0-9]+", "", node))]
+        elif isinstance(node, (int, float)) and not isinstance(node, bool):
+            out.append(float(node))
+        elif isinstance(node, dict):
+            for v in node.values():
+                head_numbers(v, out)
+        elif isinstance(node, list):
+            for v in node:
+                head_numbers(v, out)
+        return out
+
+    for v in head_numbers(head, []):
+        check(abs(v) <= HEAD_LIMIT, "%s: head value %s exceeds %s deg (SPEC 14.1)" % (n, v, HEAD_LIMIT))
+
+# SPEC 11.1: the flame geometry rides the same limb bones as the armor, nozzles at glove/boot
+fgeo = next(g for g in strict_load(FLAMES_GEO_PATH)["minecraft:geometry"]
+            if g["description"]["identifier"] == C.FLAMES_GEOMETRY)
+fb = {b["name"]: b for b in fgeo["bones"]}
+mk5_geo = next(g for g in strict_load(os.path.join(RP, "models", "entity", "sym_mk5.geo.json"))["minecraft:geometry"]
+               if g["description"]["identifier"] == "geometry.sym.mk5")
+mk5_pivots = {b["name"]: b["pivot"] for b in mk5_geo["bones"]}
+check(set(fb) == set(C.FLAMES_ROOT_BONES) | set(C.FLAME_BONES), "flames geometry bone set")
+for root, pivot in C.FLAMES_ROOT_BONES.items():
+    check(fb[root]["pivot"] == mk5_pivots[root] == pivot, "flames %s pivot must match geometry.sym.mk5" % root)
+    check("parent" not in fb[root] and not fb[root].get("cubes"), "flames %s is a bare limb bone" % root)
+for bone, (parent, cx, y0, cz) in C.FLAME_BONES.items():
+    b = fb[bone]
+    check(b["parent"] == parent, "%s parent" % bone)
+    check(b["pivot"] == [cx, y0, cz], "%s pivot at the nozzle" % bone)
+    cubes = b["cubes"]
+    check(len(cubes) >= 3, "%s: tapered cone needs stacked boxes" % bone)
+    tops = [c["origin"][1] + c["size"][1] for c in cubes]
+    check(max(tops) <= y0 + 1e-6, "%s: cubes must grow away from the nozzle (-y)" % bone)
+    widths = [c["size"][0] for c in cubes]
+    check(3.0 <= max(widths) <= 4.0 and min(c["origin"][1] for c in cubes) >= y0 - 6.5,
+          "%s: ~4x5x4 cone" % bone)
+    check(widths == sorted(widths, reverse=True), "%s: boxes must taper downwards" % bone)
+    for c in cubes:  # centred on the nozzle axis
+        check(abs(c["origin"][0] + c["size"][0] / 2 - cx) < 1e-6, "%s cube x centred" % bone)
+        check(abs(c["origin"][2] + c["size"][2] / 2 - cz) < 1e-6, "%s cube z centred" % bone)
+# the nozzles sit at the glove bottom / boot sole of geometry.sym.mk5
+mk5_cubes = {b["name"]: b.get("cubes", []) for b in mk5_geo["bones"]}
+for bone, src, axis_sign in (("mk5_flame_rh", "mk5_Hand_glove_Right", 1), ("mk5_flame_lh", "mk5_Hand_glove_Left", 1),
+                             ("mk5_flame_rf", "mk5_LowerLeg_Right", 1), ("mk5_flame_lf", "mk5_LowerLeg_Left", 1)):
+    c = mk5_cubes[src][0]
+    _parent, cx, y0, cz = C.FLAME_BONES[bone]
+    check(abs(c["origin"][0] + c["size"][0] / 2 - cx) < 0.05, "%s x over %s" % (bone, src))
+    check(abs(c["origin"][2] + c["size"][2] / 2 - cz) < 0.05, "%s z over %s" % (bone, src))
+    check(abs(c["origin"][1] - y0) < 0.3, "%s y at the %s bottom" % (bone, src))
 
 # ------------------------------------------------------------------ 5. render controllers
 ITEM_CALL = re.compile(r"query\.is_item_name_any\('slot\.armor\.chest', 0, ([^)]*)\)")
@@ -365,6 +492,17 @@ try:
     leds = set(zip(xs.tolist(), ys.tolist()))
     check(len(leds) == 20 and changed == leds, "mk5_off changes exactly the 20 LED pixels")
     check(all(b[y, x, 3] == 255 and max(b[y, x, :3]) < 80 for x, y in leds), "LED pixels opaque and dark")
+
+    # SPEC 11.1: the flame texture is fully emissive (alpha 140..200) and bright yellow-white
+    f = np.array(Image.open(os.path.join(RP, C.FLAMES_TEXTURE + ".png")).convert("RGBA"))
+    painted = f[:, :, 3] > 0
+    check(f.shape[0] == f.shape[1] and f.shape[0] % 32 == 0, "mk5_flames.png square, multiple of the 32 px UV space")
+    check(painted.any(), "mk5_flames.png has painted texels")
+    alphas = f[:, :, 3][painted]
+    check(int(alphas.min()) >= 140 and int(alphas.max()) <= 200, "flame alpha in the emissive 140..200 band")
+    rgb = f[:, :, :3][painted]
+    check(int(rgb[:, 0].min()) >= 200 and int(rgb[:, 1].min()) >= 150, "flames stay yellow-white (no dark texels)")
+    check(int(rgb[:, 2].max()) <= 250 and float(rgb[:, 2].mean()) < float(rgb[:, 1].mean()), "flames are not white-blue")
 except ImportError:
     errors.append("PIL/numpy missing")
 
@@ -387,7 +525,7 @@ check(man["header"]["min_engine_version"] == [1, 26, 0], "min engine")
 
 # ------------------------------------------------------------------ 7. idempotency
 if "--no-regen" not in sys.argv:
-    for gen in ("gen_variants.py", "gen_led_texture.py", "gen_animations.py", "gen_player_rc.py"):
+    for gen in ("gen_flames.py", "gen_variants.py", "gen_led_texture.py", "gen_animations.py", "gen_player_rc.py"):
         out = subprocess.run([sys.executable, os.path.join(B, "tools", "suit", gen)], capture_output=True, text=True)
         check(out.returncode == 0, "%s failed: %s" % (gen, out.stderr[-400:]))
         bad = [line for line in out.stdout.splitlines() if line.startswith("updated")]

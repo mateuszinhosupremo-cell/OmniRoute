@@ -46,10 +46,10 @@ export function angleBetween(a, b) {
 /**
  * Per-second consumption breakdown (SPEC 5.1).
  * @param {{worn?: boolean, powered?: boolean, busy?: boolean, visor?: string, hudOn?: boolean,
- *   lockArmed?: boolean, flightMode?: string}} s
+ *   lockArmed?: boolean, flightMode?: string, nvOn?: boolean}} s  nvOn: our night vision is on (SPEC 12.1)
  */
 export function computeDrain(s, T = TUNING) {
-  const b = { reactor: 0, arms: 0, legs: 0, eyes: 0, hud: 0, lock: 0, flight: 0, total: 0 };
+  const b = { reactor: 0, arms: 0, legs: 0, eyes: 0, hud: 0, lock: 0, flight: 0, nv: 0, total: 0 };
   if (s.worn && s.powered && !s.busy) {
     b.reactor = T.LED_REACTOR;
     b.arms = T.LED_ARMS;
@@ -58,8 +58,9 @@ export function computeDrain(s, T = TUNING) {
     if (s.hudOn && s.visor === "closed") b.hud = T.HUD_DRAIN;
     if (s.lockArmed) b.lock = T.LOCK_DRAIN;
     b.flight = flightDrain(s.flightMode, T);
+    if (s.nvOn) b.nv = T.NV_DRAIN;
   }
-  b.total = b.reactor + b.arms + b.legs + b.eyes + b.hud + b.lock + b.flight;
+  b.total = b.reactor + b.arms + b.legs + b.eyes + b.hud + b.lock + b.flight + b.nv;
   return b;
 }
 
@@ -79,6 +80,66 @@ export function flightDrain(mode, T = TUNING) {
   }
 }
 
+// ---------------------------------------------------------------------------------------------
+// auto night vision (SPEC 12.1)
+// ---------------------------------------------------------------------------------------------
+
+const smooth = (t) => {
+  const x = Math.max(0, Math.min(1, t));
+  return x * x * (3 - 2 * x);
+};
+
+/**
+ * Sky brightness factor for a time of day (0..23999, 0 = sunrise): 1 by day, NV_NIGHT_FACTOR at
+ * night, smooth through dusk (12000 -> 13800) and dawn (22200 -> 24000).
+ */
+export function nvDayFactor(timeOfDay, T = TUNING) {
+  const t = ((Number(timeOfDay) % 24000) + 24000) % 24000;
+  if (!Number.isFinite(t)) return 1;
+  const night = T.NV_NIGHT_FACTOR;
+  if (t < 12000) return 1;
+  if (t < 13800) return 1 - (1 - night) * smooth((t - 12000) / 1800);
+  if (t < 22200) return night;
+  return night + (1 - night) * smooth((t - 22200) / 1800);
+}
+
+/**
+ * Light the pilot effectively sees: block light when it beats the sky light, otherwise the sky
+ * light dimmed by the time of day. Dimensions without a day cycle use the total light only.
+ * @param {{total: number, sky: number, dayFactor: number, hasSky?: boolean}} s
+ */
+export function nvEffectiveLight(s) {
+  const total = Number(s.total) || 0;
+  if (s.hasSky === false) return total;
+  const sky = Number(s.sky) || 0;
+  return Math.max(total > sky ? total : 0, sky * s.dayFactor);
+}
+
+/**
+ * Hysteresis of the auto night vision: on after NV_ON_SAMPLES dark samples (<= NV_ON_LEVEL),
+ * off at NV_OFF_LEVEL or brighter.
+ * @param {{on: boolean, low: number}} prev
+ * @param {number} effective
+ * @returns {{on: boolean, low: number}}
+ */
+export function nvStep(prev, effective, T = TUNING) {
+  const low = effective <= T.NV_ON_LEVEL ? prev.low + 1 : 0;
+  if (prev.on) return { on: effective < T.NV_OFF_LEVEL, low };
+  return { on: low >= T.NV_ON_SAMPLES, low };
+}
+
+/**
+ * Flight mode of the creative "visual" flight from the real velocity (blocks/tick, SPEC 12.3).
+ * @param {{x:number,y:number,z:number}} v
+ * @param {boolean} sprint
+ * @param {boolean} [overheated]
+ */
+export function visualFlightMode(v, sprint, overheated = false) {
+  const h = Math.hypot(v?.x ?? 0, v?.z ?? 0);
+  if (h < 0.06) return "hover";
+  return sprint && !overheated ? "boost" : "cruise";
+}
+
 /** One tick of energy integration: energy += (regen - drain) / 20, clamped. */
 export function stepEnergy(energy, regen, drain, max) {
   return clamp(energy + (regen - drain) / 20, 0, max);
@@ -91,6 +152,7 @@ export function regenForElapsed(ticks, T = TUNING) {
   return (T.REGEN * Math.min(t, T.OFFLINE_REGEN_CAP_TICKS)) / 20;
 }
 
+/** @param {number} energy @param {number} [max] */
 export function energyPct(energy, max = TUNING.ENERGY_MAX) {
   return Math.round(clamp(energy / max, 0, 1) * 100);
 }
@@ -164,6 +226,7 @@ export function visorCharge(powered, energy, T = TUNING) {
 }
 
 /** A one-shot cost as a whole battery percentage (at least 1): VISOR_COST 10 -> 1. */
+/** @param {number} cost @param {number} [max] */
 export function costPct(cost, max = TUNING.ENERGY_MAX) {
   return Math.max(1, Math.round((Math.max(0, cost) / max) * 100));
 }
@@ -462,4 +525,22 @@ export function reticleCode(locked, acquiring, cls) {
   if (acquiring) return "l";
   if (locked) return "k";
   return cls ?? "i";
+}
+
+/**
+ * Live readout shown on the actionbar while the Maleta Mark V is held (SPEC 13).
+ * Pure: no engine access, so the exact text is unit-tested.
+ * @param {number} energy current reactor charge
+ * @param {number} [max] ENERGY_MAX
+ * @param {number} [cost] SUITUP_COST
+ * @param {number} [regen] REGEN per second
+ */
+export function caseLine(energy, max = Number(TUNING.ENERGY_MAX), cost = Number(TUNING.SUITUP_COST), regen = Number(TUNING.REGEN)) {
+  const e = Number.isFinite(energy) ? clamp(energy, 0, max) : 0;
+  const pct = energyPct(e, max);
+  if (e >= cost) return `§bMALETA MARK V §7• §fENERGIA §b${pct}% §7• §aPRONTA PARA VESTIR`;
+  const need = costPct(cost, max);
+  const secs = regen > 0 ? Math.max(1, Math.ceil((cost - e) / regen)) : 0;
+  const wait = secs > 0 ? ` §7• §f~${secs}s` : "";
+  return `§bMALETA MARK V §7• §fENERGIA §c${pct}% §7• §cPRECISA DE ${need}%${wait}`;
 }

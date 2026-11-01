@@ -13,7 +13,7 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@minecraft/server": ["../../ref/mcapi/minecraft-server-2.0.0/package/index.d.ts"],
+      "@minecraft/server": ["../../ref/mcapi/minecraft-server-2.3.0/package/index.d.ts"],
       "@minecraft/server-ui": ["../../ref/mcapi/minecraft-server-ui-2.0.0/package/index.d.ts"],
       "@minecraft/common": ["../../ref/mcapi/minecraft-common-1.2.0/package/index.d.ts"]
     }

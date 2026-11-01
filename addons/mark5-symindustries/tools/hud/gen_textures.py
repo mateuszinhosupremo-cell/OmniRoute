@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import sys
 
 import numpy as np
@@ -200,11 +201,31 @@ def alpha_bleed(im, iters=6):
     return Image.fromarray(np.clip(out + 0.5, 0, 255).astype(np.uint8), "RGBA")
 
 
+_PADDED_FRAME = re.compile(r"^(.*_)(0\d+)$")
+
+
+def unpadded_twin(rel):
+    """Name of the leading-zero-free twin of a zero-padded frame name, or None.
+
+    JSON UI coerces numeric-looking strings, so in game ``'textures/sym/hud/energy_' + '09'`` can
+    become ``energy_9`` (SPEC 11 item 1). Every padded frame (``energy_09``, ``hp_h_00``,
+    ``thrust_05`` ...) is therefore written twice: ``energy_09`` and ``energy_9``, ``hp_h_00`` and
+    ``hp_h_0``. Names without a leading zero (``energy_12``, ``lock_3``) need no twin.
+    """
+    m = _PADDED_FRAME.match(rel)
+    return f"{m.group(1)}{int(m.group(2))}" if m else None
+
+
 def save(im, rel, base=HUD_DIR):
-    path = os.path.join(base, rel + ".png")
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    im.save(path, optimize=True)
-    written.append(os.path.relpath(path, RP).replace(os.sep, "/"))
+    names = [rel]
+    twin = unpadded_twin(rel)
+    if twin is not None:
+        names.append(twin)
+    for name in names:
+        path = os.path.join(base, name + ".png")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        im.save(path, optimize=True)
+        written.append(os.path.relpath(path, RP).replace(os.sep, "/"))
 
 
 def blank(rel, size=4):
@@ -693,14 +714,15 @@ def gen_lock():
 
 
 def gen_reticle_ring():
-    # 8-fold symmetric ring; 9 frames x 5 deg = 45 deg period -> seamless loop
+    # 8-fold symmetric ring, ONE static frame (SPEC 11 item 3: no flip_book uv animation; the UI
+    # gives it a slow alpha pulse instead of a rotation)
     D, k = 60, 1.6
-    FR = 9
+    FR = 1
     fw = int(D * k)
     strip = Image.new("RGBA", (fw * FR, fw), (0, 0, 0, 0))
     m = D / 2
     for f in range(FR):
-        rot = f * 5.0
+        rot = 0.0
         c = Canvas(fw, fw)
         K = lambda v: v * k
         for i in range(8):
@@ -719,7 +741,6 @@ def gen_reticle_ring():
 def gen_radar():
     S, k = 12, 4.0
     m = S / 2
-    FR = 12
 
     def base(c):
         c.arc(m * k, m * k, 5.3 * k, 0, 360, rgba(CYAN, 0.9), 0.55 * k, glow=0.6 * k)
@@ -733,12 +754,14 @@ def gen_radar():
     c.ellipse((m + 2.6) * k, (m - 1.6) * k, 0.6 * k, 0.6 * k, fill=rgba(RED, 1.0), glow=0.5 * k)
     c.ellipse((m - 1.8) * k, (m + 2.4) * k, 0.55 * k, 0.55 * k, fill=rgba(GREEN, 1.0))
     save(c.result(), "radar_idle")
+    # ONE static sweep frame (no flip_book uv animation: SPEC 11 item 3); the UI blinks it
     fw = int(S * k)
+    FR = 1
     strip = Image.new("RGBA", (fw * FR, fw), (0, 0, 0, 0))
     for f in range(FR):
         c = Canvas(fw, fw)
         base(c)
-        ang = -90 + f * 30
+        ang = -45.0
         for j in range(10):  # fading wedge trail
             a0 = ang - j * 6
             c.annulus_seg(m * k, m * k, 0.3 * k, 5.0 * k, a0 - 6, a0, fill=rgba(CYAN, 0.55 * (1 - j / 10)))
@@ -893,8 +916,9 @@ def gen_boot_extras():
             # crack across the reactor
             c.line([(K(m - 7), K(m - 5)), (K(m - 1), K(m - 0.5)), (K(m + 1), K(m + 2)), (K(m + 7), K(m + 6))], rgba(WHITE, 0.8), K(0.5))
         save(c.result(), f"boot_ring_{mode}")
-    # loading chaser strip: 8 frames of a 64x5 segmented bar
-    w, h, k, FR = 64, 5, 2.0, 8
+    # loading bar: ONE static frame of a 64x5 segmented bar (no flip_book uv animation: SPEC 11
+    # item 3; the UI pulses its alpha). Boot: bright ramp toward the right; failure: alternating.
+    w, h, k, FR = 64, 5, 2.0, 1
     fw = int(w * k)
     for mode, col in (("2", CYAN), ("3", RED)):
         strip = Image.new("RGBA", (fw * FR, int(h * k)), (0, 0, 0, 0))
@@ -904,8 +928,7 @@ def gen_boot_extras():
             sw = (w - n + 1) / n
             for i in range(n):
                 x0 = i * (sw + 1)
-                dist = (i - f * 2) % n
-                inten = max(0.0, 1 - dist / 6) if mode == "2" else (0.9 if (f % 2 == 0) else 0.25)
+                inten = (0.35 + 0.65 * i / (n - 1)) if mode == "2" else (0.9 if (i % 2 == 0) else 0.25)
                 c.poly([((x0 + 1) * k, 0.5 * k), ((x0 + 1 + sw) * k, 0.5 * k), ((x0 + sw) * k, (h - 0.5) * k), (x0 * k, (h - 0.5) * k)],
                        fill=rgba(col, 0.15 + 0.8 * inten))
             strip.paste(c.result(), (f * fw, 0))

@@ -50,13 +50,15 @@ test("every script file only imports existing relative modules / allowed engine 
   }
 });
 
-test("manifest declares server 2.0.0 + server-ui 2.0.0 and version 2.0.0", () => {
+test("manifest declares server 2.3.0 (SPEC 12.1) + server-ui 2.0.0 and version 2.0.0", () => {
   const m = JSON.parse(readFileSync(join(ROOT, "pack/Mark5_BP/manifest.json"), "utf8"));
   assert.deepEqual(m.header.version, [2, 0, 0]);
   assert.deepEqual(m.header.min_engine_version, [1, 26, 0]);
   for (const x of m.modules) assert.deepEqual(x.version, [2, 0, 0]);
   const deps = Object.fromEntries(m.dependencies.filter((d) => d.module_name).map((d) => [d.module_name, d.version]));
-  assert.equal(deps["@minecraft/server"], "2.0.0");
+  assert.equal(deps["@minecraft/server"], "2.3.0");
+  const ts = JSON.parse(readFileSync(join(ROOT, "tests/typecheck/tsconfig.json"), "utf8"));
+  assert.match(ts.compilerOptions.paths["@minecraft/server"][0], /minecraft-server-2\.3\.0\/package\/index\.d\.ts$/);
   assert.equal(deps["@minecraft/server-ui"], "2.0.0");
   const rp = m.dependencies.find((d) => d.uuid);
   assert.deepEqual(rp.version, [2, 0, 0]);
@@ -107,7 +109,7 @@ test("encodeHud: constant byte length, every field decodes back", () => {
   assert.ok(s.startsWith("MK5H1"));
   assert.equal(field(s, "energy_pct"), "087");
   assert.equal(field(s, "energy_frame"), "17");
-  assert.equal(field(s, "integrity_pct"), "093");
+  assert.equal(field(s, "integrity_pct"), " 93", "SPEC 11 item 2: right-aligned with spaces");
   assert.equal(field(s, "integrity_state"), "n");
   assert.equal(field(s, "reticle"), "h");
   assert.equal(field(s, "lock_frame"), "3");
@@ -125,6 +127,14 @@ test("encodeHud: constant byte length, every field decodes back", () => {
   const j = codec.encodeHud({ energy_pct: 4000, energy_frame: -3, reticle: "", integrity_pct: 250 });
   assert.equal(field(j, "energy_pct"), "999");
   assert.equal(field(j, "energy_frame"), "00");
+  assert.equal(field(j, "integrity_pct"), "250");
+  // SPEC 11 item 2: integrity_pct is right-aligned with SPACES, every other digits field keeps zeros
+  for (const [v, want] of [[100, "100"], [72, " 72"], [5, "  5"], [0, "  0"], [-4, "  0"], ["x", "  0"], [59.6, " 60"]]) {
+    assert.equal(field(codec.encodeHud({ integrity_pct: v }), "integrity_pct"), want, `integrity_pct ${v}`);
+  }
+  assert.equal(field(codec.encodeHud({ energy_pct: 5, energy_frame: 9 }), "energy_pct"), "005");
+  assert.equal(field(codec.encodeHud({ energy_frame: 9 }), "energy_frame"), "09");
+  assert.deepEqual([...codec.SPACE_PADDED_FIELDS], ["integrity_pct"]);
   assert.equal(field(j, "reticle"), "i");
 });
 
@@ -162,8 +172,8 @@ test("compass tape fits its field for every heading and is centred", () => {
 });
 
 // ---------------------------------------------------------------------------------------------
-test("variant table matches SPEC 2.1", () => {
-  assert.equal(C.SUIT_IDS.length, 9);
+test("variant table matches SPEC 2.1 + 11.1 (flying twins, power-up item)", () => {
+  assert.equal(C.SUIT_IDS.length, 12);
   const row = (id) => C.VARIANTS[id];
   assert.equal(row("sym:mark_5").visor, "closed");
   assert.equal(row("sym:mark_5_offline").protection, 8);
@@ -171,15 +181,33 @@ test("variant table matches SPEC 2.1", () => {
   for (const id of C.SUIT_IDS) {
     const v = row(id);
     assert.ok(C.isSuitId(v.final) && !C.isTempVariant(v.final), `${id} final ${v.final}`);
-    assert.equal(v.temp, ["opening", "closing"].includes(v.visor) || id === C.POWERDOWN_ID, id);
-    assert.equal(C.variantFor({ powered: v.powered, visor: v.visor, dying: v.dying }), id);
+    assert.equal(v.temp, ["opening", "closing"].includes(v.visor) || id === C.POWERDOWN_ID || id === C.POWERUP_ID, id);
+    assert.equal(v.flying, id.endsWith("_flying"), id);
+    // variantFor never yields a flying twin or the power-up item (both are worn by the script only)
+    if (!v.flying && id !== C.POWERUP_ID) assert.equal(C.variantFor({ powered: v.powered, visor: v.visor, dying: v.dying }), id);
+    assert.equal(C.groundTwin(id), v.flying ? v.ground : id);
   }
+  // SPEC 11.1 flying twins: powered finals only, protection 20, same visor as their ground twin
+  assert.equal(C.flyingTwin("sym:mark_5"), "sym:mark_5_flying");
+  assert.equal(C.flyingTwin("sym:mark_5_open"), "sym:mark_5_open_flying");
+  for (const id of ["sym:mark_5_opening", "sym:mark_5_offline", "sym:mark_5_powerup", "sym:mark_5_flying", undefined]) {
+    assert.equal(C.flyingTwin(id), undefined, String(id));
+  }
+  assert.equal(C.groundTwin("sym:mark_5_flying"), "sym:mark_5");
+  assert.equal(C.groundTwin("sym:mark_5_open_flying"), "sym:mark_5_open");
+  for (const id of ["sym:mark_5_flying", "sym:mark_5_open_flying"]) {
+    const v = row(id);
+    assert.ok(v.powered && !v.temp && v.final === id && v.protection === 20, id);
+    assert.equal(v.visor, row(v.ground).visor);
+  }
+  const up = row(C.POWERUP_ID);
+  assert.ok(up.powered && up.temp && up.visor === "closed" && up.final === "sym:mark_5" && up.protection === 20);
   assert.equal(C.finalOf("sym:mark_5_opening"), "sym:mark_5_open");
   assert.equal(C.finalOf("sym:mark_5_offline_closing"), "sym:mark_5_offline");
   assert.equal(C.finalOf("sym:mark_5_powerdown"), "sym:mark_5_offline");
   assert.equal(C.isSuitId("sym:mark_5_assembling_4"), false);
   assert.equal(C.isSuitId(undefined), false);
-  assert.deepEqual(C.TRANSITION_TICKS, { visor: 16, powerdown: 24 });
+  assert.deepEqual(C.TRANSITION_TICKS, { visor: 16, powerdown: 24, powerup: 24 });
 });
 
 test("tuning numbers match SPEC 6", () => {
@@ -192,6 +220,8 @@ test("tuning numbers match SPEC 6", () => {
     SHIELD_COST_PER_HP: 12, CRUISE_SPEED: 0.75, BOOST_SPEED: 1.6, STRAFE_SPEED: 0.45,
     VERT_UP: 0.45, VERT_DOWN: 0.5, ACCEL_HOVER: 0.25, ACCEL_CRUISE: 0.18, ACCEL_BOOST: 0.1,
     TARGET_RANGE: 48, SCAN_RADIUS: 32, SCAN_MARK_TICKS: 240, LOCK_RANGE: 64,
+    NV_DRAIN: 0.5, NV_SAMPLE_TICKS: 10, NV_ON_LEVEL: 6, NV_ON_SAMPLES: 2, NV_OFF_LEVEL: 9,
+    NV_DURATION: 400, NV_REFRESH_BELOW: 300, SUITUP_COST: 80, SUITOFF_COST: 40,
   };
   for (const [k, v] of Object.entries(expect)) assert.equal(T[k], v, k);
 });
@@ -209,6 +239,71 @@ test("energy drain breakdown (SPEC 5.1)", () => {
   assert.equal(calc.computeDrain({ ...base, busy: true }).total, 0);
   assert.equal(calc.computeDrain({ ...base, powered: false }).total, 0);
   assert.equal(calc.computeDrain({ worn: false }).total, 0);
+  // SPEC 12.1: our night vision drains 0.5/s, only while powered
+  const nv = calc.computeDrain({ ...base, nvOn: true });
+  assert.equal(nv.nv, 0.5);
+  assert.equal(+nv.total.toFixed(3), +(d.total + 0.5).toFixed(3));
+  assert.equal(calc.computeDrain({ ...base, nvOn: true, powered: false }).nv, 0);
+  assert.equal(d.nv, 0);
+});
+
+test("auto night vision: day factor, effective light, hysteresis (SPEC 12.1)", () => {
+  assert.equal(calc.nvDayFactor(6000), 1);
+  assert.equal(calc.nvDayFactor(0), 1);
+  assert.equal(calc.nvDayFactor(18000), 0.27);
+  const dusk = calc.nvDayFactor(12900);
+  assert.ok(dusk < 1 && dusk > 0.27, `smooth dusk ${dusk}`);
+  const dawn = calc.nvDayFactor(23100);
+  assert.ok(dawn < 1 && dawn > 0.27, `smooth dawn ${dawn}`);
+  for (let t = 11000; t < 25000; t += 100) {
+    const a = calc.nvDayFactor(t);
+    const b = calc.nvDayFactor(t + 100);
+    assert.ok(Math.abs(a - b) < 0.07, `no jump at ${t}`);
+  }
+  // outdoors: sky light dimmed by the night; torches (total > sky) count fully; Nether/End: total
+  assert.equal(calc.nvEffectiveLight({ total: 15, sky: 15, dayFactor: 1 }), 15);
+  assert.ok(calc.nvEffectiveLight({ total: 15, sky: 15, dayFactor: 0.27 }) <= 6, "open sky at night is dark");
+  assert.equal(calc.nvEffectiveLight({ total: 12, sky: 0, dayFactor: 1 }), 12, "torch-lit cave");
+  assert.equal(calc.nvEffectiveLight({ total: 3, sky: 0, dayFactor: 1 }), 3, "dark cave");
+  assert.equal(calc.nvEffectiveLight({ total: 7, sky: 0, dayFactor: 1, hasSky: false }), 7, "nether");
+  // ON after 2 dark samples, OFF at >= 9, nothing in between
+  let s = { on: false, low: 0 };
+  s = calc.nvStep(s, 4);
+  assert.deepEqual(s, { on: false, low: 1 });
+  s = calc.nvStep(s, 6);
+  assert.equal(s.on, true);
+  s = calc.nvStep(s, 8);
+  assert.equal(s.on, true, "hysteresis keeps it on at 7..8");
+  s = calc.nvStep(s, 9);
+  assert.equal(s.on, false);
+  s = calc.nvStep(s, 3);
+  s = calc.nvStep(s, 7);
+  assert.equal(s.on, false, "a bright sample resets the dark count");
+  assert.equal(s.low, 0);
+});
+
+test("creative visual flight mode from the real velocity (SPEC 12.3)", () => {
+  assert.equal(calc.visualFlightMode({ x: 0, y: 0, z: 0 }, false), "hover");
+  assert.equal(calc.visualFlightMode({ x: 0.01, y: -0.4, z: 0 }, true), "hover", "vertical only = hover");
+  assert.equal(calc.visualFlightMode({ x: 0.3, y: 0, z: 0.2 }, false), "cruise");
+  assert.equal(calc.visualFlightMode({ x: 0.3, y: 0, z: 0.4 }, true), "boost");
+  assert.equal(calc.visualFlightMode({ x: 0.3, y: 0, z: 0.4 }, true, true), "cruise", "overheated: no boost");
+});
+
+test("scripts: no in-flight flame sprites; suit-up is paid before both cinematics (SPEC 11.1 / 12.2)", () => {
+  const dir = join(ROOT, "pack/Mark5_BP/scripts");
+  const all = [join(dir, "main.js"), ...readdirSync(join(dir, "suit")).map((f) => join(dir, "suit", f))];
+  for (const f of all) {
+    const src = readFileSync(f, "utf8");
+    for (const id of ["sym:mk5_thrust", "sym:mk5_thrust_glow", "sym:mk5_smoke"]) assert.ok(!src.includes(`"${id}"`), `${f} spawns ${id}`);
+  }
+  assert.equal(C.FX.TRAIL, "sym:mk5_trail");
+  assert.equal(C.SND.NIGHT_VISION, "sym.mk5.night_vision");
+  assert.equal(C.PROP.NV, "sym:mk5_nv");
+  const main = readFileSync(join(dir, "main.js"), "utf8");
+  assert.match(main, /chargeSuitUp\(player\)\) !== false\) beginThrowSequence\(player\)/, "throw case pays first");
+  const placed = main.slice(main.indexOf("// walking onto a placed case"));
+  assert.ok(placed.indexOf("chargeSuitUp(player)") > 0 && placed.indexOf("chargeSuitUp(player)") < placed.indexOf("beginFromPlacedCase(player, ent)"), "placed case pays first");
 });
 
 test("energy integration, regen and gauges", () => {
@@ -421,9 +516,16 @@ test("HUD text builders always fit their fields (worst cases)", () => {
   fits(texts.suitText({ powered: false, dying: true, visor: "opening", protection: 20, integrity: 100 }), W.suit, "suit");
   assert.equal(texts.suitText({ powered: true, visor: "closed", protection: 20, integrity: 100 }).split("\n").length, 3);
   const drain = { reactor: 0.3, arms: 0.3, legs: 0.3, eyes: 0.1, hud: 1, lock: 0.6, flight: 16 };
-  const sys = texts.systemsText({ regen: 4, drain, flightMode: "emergency", lockArmed: true, locked: true, heat: 100, overheated: true, shieldPct: 100 });
-  fits(sys, W.systems, "systems");
-  assert.equal(sys.split("\n").length, 6, "systems shows all 6 lines");
+  for (const nv of [undefined, "on", "auto", "off"]) {
+    const sys = texts.systemsText({ regen: 4, drain: { ...drain, nv: 0.5 }, flightMode: "emergency", lockArmed: true, locked: true, heat: 100, overheated: true, shieldPct: 100, nv });
+    fits(sys, W.systems, "systems");
+    assert.equal(sys.split("\n").length, 6, `systems shows all 6 lines (nv ${nv})`);
+  }
+  // SPEC 12.1: the NV AUTO state shows next to the shield in normal conditions
+  const sysOf = (nv) => texts.systemsText({ regen: 4, drain, lockArmed: false, heat: 10, shieldPct: 72, nv }).split("\n")[4];
+  assert.equal(sysOf("on"), "§7ESCUDO §a72% §bNV AUTO");
+  assert.equal(sysOf("auto"), "§7ESCUDO §a72% §8NV AUTO");
+  assert.equal(sysOf("off"), "§7ESCUDO §a72% §8NV DESL.");
   const tgt = texts.targetText({ name: long, cls: "n", threat: "MÉDIA", dist: 47.9, hp: 300, maxHp: 300, locked: true, provoked: true });
   fits(tgt, W.target, "target");
   assert.equal(tgt.split("\n").length, 4, "target shows all 4 lines");
@@ -460,4 +562,30 @@ test("per-player state helpers", () => {
   assert.equal(st.energy, 0);
   state.dropState("p1");
   assert.equal(state.peekState("p1"), undefined);
+});
+
+test("caseLine: suitcase energy readout (SPEC 13)", () => {
+  const { caseLine } = calc;
+  const T = C.TUNING;
+  const max = T.ENERGY_MAX;
+  const ready = caseLine(max, max, T.SUITUP_COST, T.REGEN);
+  assert.match(ready, /MALETA MARK V/);
+  assert.match(ready, /ENERGIA .*100%/);
+  assert.match(ready, /PRONTA PARA VESTIR/);
+  // exactly at the cost: still ready
+  assert.match(caseLine(T.SUITUP_COST, max, T.SUITUP_COST, T.REGEN), /PRONTA PARA VESTIR/);
+  // below the cost: shows the needed % and the wait in seconds
+  const low = caseLine(0, max, T.SUITUP_COST, T.REGEN);
+  assert.match(low, /PRECISA DE 8%/);
+  assert.match(low, /~20s/); // 80 energy / 4.0 per second
+  assert.ok(!low.includes("PRONTA"));
+  // the wait shrinks as it charges, and never shows 0s
+  const half = caseLine(T.SUITUP_COST - 1, max, T.SUITUP_COST, T.REGEN);
+  assert.match(half, /~1s/);
+  // junk input never throws or prints NaN
+  for (const v of [undefined, NaN, -50, max * 10]) {
+    const s = caseLine(/** @type {number} */ (v), max, T.SUITUP_COST, T.REGEN);
+    assert.ok(!s.includes("NaN"), `NaN in ${s}`);
+    assert.ok(!s.includes("undefined"));
+  }
 });

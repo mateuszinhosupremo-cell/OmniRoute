@@ -7,7 +7,7 @@
 // sym:mk5_offline (latched failure flag). Saved at most once per second.
 
 import { EntityDamageCause, world } from "@minecraft/server";
-import { PROP, SND, FX, TUNING as T, POWERDOWN_ID, TRANSITION_TICKS, variantFor } from "./constants.js";
+import { PROP, SND, FX, TUNING as T, POWERDOWN_ID, POWERUP_ID, TRANSITION_TICKS, variantFor } from "./constants.js";
 import { alarmLevelFor, alarmStep, computeDrain, energyPct, regenForElapsed, shieldAbsorb, stepEnergy } from "./calc.js";
 import { actionbar, chestOf, quiet, worldParticle, worldSound } from "./fx.js";
 import { pushAlert, showFailure } from "./hud.js";
@@ -122,6 +122,7 @@ export function integrate(st) {
     hudOn: st.hudEnabled,
     lockArmed: st.lock.armed,
     flightMode: st.flight?.mode,
+    nvOn: st.nv.on,
   });
   st.rate = T.REGEN - st.drain.total;
   const before = st.energy;
@@ -170,6 +171,7 @@ export function powerDown(player, st, tick) {
   st.energy = 0;
   st.dirty = true;
   saveOffline(player, st);
+  // SPEC 11.1 order: end the flight first (the `_flying` variant goes back), then power down
   if (st.flight) flight.stop(player, st, { fall: true });
   const worn = st.worn;
   if (worn && !worn.temp) {
@@ -191,8 +193,9 @@ export function powerDown(player, st, tick) {
 }
 
 /**
- * Enough energy again: unlatch and wear the powered variant of the same visor state (the closed
- * suit's attachable flickers the eyes back on). The HUD boots on its own (rising edge).
+ * Enough energy again: unlatch and wear the powered variant of the same visor state. Closed visor:
+ * the `sym:mark_5_powerup` item (eyes flicker on) for TRANSITION_TICKS.powerup, then `sym:mark_5`;
+ * open visor: straight to `sym:mark_5_open` (SPEC 11.1). The HUD boots on its own (rising edge).
  * @param {import("@minecraft/server").Player} player
  * @param {import("./state.js").SuitState} st
  */
@@ -201,7 +204,13 @@ export function reboot(player, st, tick) {
   saveOffline(player, st);
   const worn = st.worn;
   if (worn && !worn.temp && !worn.powered) {
-    swapChest(player, variantFor({ powered: true, visor: worn.visor }));
+    if (worn.visor === "closed") {
+      if (swapChest(player, POWERUP_ID, { temp: true })) {
+        st.transition = { from: POWERUP_ID, to: variantFor({ powered: true, visor: "closed" }), at: tick + TRANSITION_TICKS.powerup, kind: "powerup" };
+      }
+    } else {
+      swapChest(player, variantFor({ powered: true, visor: worn.visor }));
+    }
     st.worn = getWornSuit(player);
   }
   const loc = player.location;

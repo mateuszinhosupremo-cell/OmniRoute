@@ -1,6 +1,7 @@
 // Representative HUD states (field values per tools/hud_protocol.json) used by the decoder test
 // and by preview.py. Texts are realistic PT-BR with § colour codes, accents and \n, kept within
 // each field's byte width (checked by the test, so the samples never rely on truncation).
+// integrity_pct is right-aligned with SPACES ("100", " 72", "  5"), as the script sends it.
 
 const leds = (on) => ({ led_head: on, led_chest: on, led_arms: on, led_legs: on });
 
@@ -29,7 +30,7 @@ export const STATES = {
     title: "hostile target + locking",
     fields: {
       mode: "1", energy_pct: "064", energy_frame: "13", energy_state: "n", integrity_frame: "07",
-      integrity_pct: "072", integrity_state: "n",
+      integrity_pct: " 72", integrity_state: "n",
       reticle: "l", lock_frame: "3", target_class: "h", target_hp_frame: "07", flight: "0",
       thrust_frame: "00", scan: "0", alert: "i", ...leds("1"), lock_mode: "1", threat: "1",
       compass: COMPASS_SE,
@@ -45,7 +46,7 @@ export const STATES = {
     title: "flight boost + scan results + low energy alert",
     fields: {
       mode: "1", energy_pct: "021", energy_frame: "04", energy_state: "w", integrity_frame: "05",
-      integrity_pct: "054", integrity_state: "w",
+      integrity_pct: " 54", integrity_state: "w",
       reticle: "p", lock_frame: "0", target_class: "p", target_hp_frame: "10", flight: "b",
       thrust_frame: "09", scan: "1", alert: "w", ...leds("1"), lock_mode: "0", threat: "1",
       compass: COMPASS_N,
@@ -63,7 +64,7 @@ export const STATES = {
     title: "armor critical",
     fields: {
       mode: "1", energy_pct: "048", energy_frame: "10", energy_state: "n", integrity_frame: "01",
-      integrity_pct: "012", integrity_state: "c",
+      integrity_pct: " 12", integrity_state: "c",
       reticle: "h", lock_frame: "0", target_class: "h", target_hp_frame: "09", flight: "0",
       thrust_frame: "00", scan: "0", alert: "c", ...leds("1"), lock_mode: "0", threat: "1",
       compass: COMPASS_SE,
@@ -79,7 +80,7 @@ export const STATES = {
     title: "boot sequence",
     fields: {
       mode: "2", energy_pct: "087", energy_frame: "17", energy_state: "n", integrity_frame: "09",
-      integrity_pct: "093", integrity_state: "n",
+      integrity_pct: " 93", integrity_state: "n",
       reticle: "i", ...leds("1"),
       boot_text: "§b> SYM OS 2.0 — INICIALIZANDO\n§7> REATOR ARC ........ §aOK\n§7> ARMADURA ........... §aOK\n§7> PROPULSORES ....... §aOK\n§7> SENSORES ........... §e...",
     },
@@ -88,7 +89,7 @@ export const STATES = {
     title: "power failure",
     fields: {
       mode: "3", energy_pct: "000", energy_frame: "00", energy_state: "c", integrity_frame: "09",
-      integrity_pct: "087", integrity_state: "n",
+      integrity_pct: " 87", integrity_state: "n",
       reticle: "i", ...leds("0"),
       boot_text: "§c§lSISTEMAS OFFLINE\n§cENERGIA ESGOTADA\n§7LEDs desligados\n§7Reiniciando com 15% de carga...",
     },
@@ -100,7 +101,7 @@ export const EXTRA_STATES = {
   critical_scanning: {
     fields: {
       mode: "1", energy_pct: "006", energy_frame: "01", energy_state: "c", integrity_frame: "01",
-      integrity_pct: "005", integrity_state: "c",
+      integrity_pct: "  5", integrity_state: "c",
       reticle: "k", lock_frame: "5", target_class: "j", target_hp_frame: "03", flight: "e",
       thrust_frame: "02", scan: "2", alert: "c", ...leds("1"), lock_mode: "1", threat: "0",
       compass: "§8+--§7NO§8--+---+---§cN§8--+---+--", coords_text: "§70 320 0 §b180° S", energy_text: "§c6% §c-0.0/s",
@@ -121,10 +122,10 @@ export const EXTRA_STATES = {
     },
   },
   integrity_zero: {
-    fields: { integrity_pct: "000", integrity_state: "c", integrity_frame: "00", alert: "c", alert_text: "§c§lARMADURA CRÍTICA — 0%" },
+    fields: { integrity_pct: "  0", integrity_state: "c", integrity_frame: "00", alert: "c", alert_text: "§c§lARMADURA CRÍTICA — 0%" },
   },
   integrity_eighty: {
-    fields: { integrity_pct: "080", integrity_state: "n", integrity_frame: "08" },
+    fields: { integrity_pct: " 80", integrity_state: "n", integrity_frame: "08" },
   },
   mode0_valid: {
     fields: { mode: "0" },

@@ -14,6 +14,14 @@
 //   str + str       concatenation;  (x * 1) converts a numeric string to a number
 //   =               equality (numeric when both sides are numbers)
 //   and / or / not  booleans
+// Numeric-looking strings (SPEC 11 item 1): the real engine coerces them, so a field "09" can
+// become the number 9 ('textures/x_' + '09' -> 'textures/x_9'). Both behaviours are modelled:
+//   opts.numeric = "keep"    every computed value stays a string (default)
+//   opts.numeric = "coerce"  every COMPUTED string value that looks numeric (" 72", "09", "0")
+//                            becomes a number; number -> string conversion drops leading zeros /
+//                            spaces; '=' between a number and a string is FALSE (pessimistic: the
+//                            engine is not trusted to compare across types). Literals stay as
+//                            written (the UI never uses numeric-looking literals; tests assert it).
 import { readFileSync } from "node:fs";
 
 const enc = new TextEncoder();
@@ -120,8 +128,22 @@ export function parse(src) {
 
 const FMT = /^%\.(\d+)s$/;
 
+export const NUMERIC_MODES = ["keep", "coerce"];
+const NUMERIC_RE = /^\s*[-+]?\d+(\.\d+)?\s*$/;
+export const looksNumeric = (v) => typeof v === "string" && NUMERIC_RE.test(v);
+/** What a value looks like after the engine's coercion (coerce mode). */
+export const coerceValue = (v) => (looksNumeric(v) ? Number(v.trim()) : v);
+
 export function evaluate(ast, scope, opts = {}) {
+  const numeric = opts.numeric || "keep";
+  if (!NUMERIC_MODES.includes(numeric)) throw new Error(`numeric mode ${numeric}`);
+  if (numeric === "coerce" && n_k(ast) !== "str" && n_k(ast) !== "num") return coerceValue(evalRaw(ast, scope, opts));
+  return evalRaw(ast, scope, opts);
+}
+
+function evalRaw(ast, scope, opts) {
   const minus = opts.minus || "all";
+  const coerce = opts.numeric === "coerce";
   const trace = opts.trace;
   const ev = (n) => evaluate(n, scope, opts);
   switch (n_k(ast)) {
@@ -161,6 +183,7 @@ export function evaluate(ast, scope, opts = {}) {
           return toNum(a) - toNum(b);
         case "=":
           if (typeof a === "number" && typeof b === "number") return a === b;
+          if (coerce && (typeof a === "number") !== (typeof b === "number")) return false;
           return String(a) === String(b);
         case ">":
           return toNum(a) > toNum(b);
@@ -253,6 +276,17 @@ export function fitText(s, width) {
  * exactly their width in ASCII; text fields are padded/truncated to their byte width.
  * Returns { title, values } where values[name] is the exact field content that was encoded.
  */
+/** Numeric fields the script sends RIGHT-ALIGNED WITH SPACES instead of zero padding (SPEC 11
+ *  item 2): "100", " 72", "  5". */
+export const SPACE_PADDED = new Set(["integrity_pct"]);
+
+/** A numeric field value as the script encodes it ("7" -> "007", or "  7" if space padded). */
+export function padNumber(name, v, width) {
+  const t = String(v).trim();
+  if (SPACE_PADDED.has(name)) return (t.replace(/^0+(?=\d)/, "") || "0").padStart(width, " ");
+  return t.padStart(width, "0");
+}
+
 export function encodeHud(proto, fields) {
   let s = proto.header;
   const values = {};
@@ -263,7 +297,7 @@ export function encodeHud(proto, fields) {
     if (f.type === "text") {
       v = fitText(v, f.width);
     } else {
-      if (f.type === "digits") v = v.padStart(f.width, "0");
+      if (f.type === "digits" || SPACE_PADDED.has(f.name)) v = padNumber(f.name, v, f.width);
       if (!/^[\x20-\x7e]*$/.test(v) || v.length !== f.width) throw new Error(`field ${f.name} must be ${f.width} ASCII chars, got '${v}'`);
     }
     values[f.name] = v;
@@ -275,6 +309,7 @@ export function encodeHud(proto, fields) {
 
 export function defaultField(f) {
   if (f.type === "text") return "";
+  if (SPACE_PADDED.has(f.name)) return padNumber(f.name, "0", f.width);
   if (f.type === "digits") return "0".repeat(f.width);
   const d = { mode: "1", energy_state: "n", reticle: "i", lock_frame: "0", target_class: "0", flight: "0", scan: "0", alert: "0", lock_mode: "0", threat: "0", integrity_state: "n" };
   return d[f.name] ?? "0";

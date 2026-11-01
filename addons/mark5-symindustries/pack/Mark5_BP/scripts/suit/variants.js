@@ -1,7 +1,7 @@
 // Mark V suit variants — the worn chest item encodes power (powered / offline / dying) and visor
 // (closed / open / opening / closing). Swapping copies everything that makes the suit "yours".
 
-import { EquipmentSlot, ItemLockMode, ItemStack } from "@minecraft/server";
+import { EnchantmentTypes, EquipmentSlot, ItemLockMode, ItemStack } from "@minecraft/server";
 import { ITEM_SUIT, PROP, VARIANTS, finalOf, isSuitId, isTempVariant, variantFor, variantInfo } from "./constants.js";
 import { quiet } from "./fx.js";
 
@@ -71,11 +71,7 @@ export function makeSuitItem(src, newId, temp) {
       }
     });
   }
-  let keep = false;
-  quiet(() => {
-    const stashed = src?.getDynamicProperty(PROP.ITEM_KEEP);
-    keep = typeof stashed === "boolean" ? stashed : !!src?.keepOnDeath;
-  });
+  const keep = keepOf(src);
   quiet(() => {
     if (temp) {
       item.lockMode = ItemLockMode.slot;
@@ -87,6 +83,67 @@ export function makeSuitItem(src, newId, temp) {
     }
   });
   return item;
+}
+
+/**
+ * Real keep-on-death of a suit stack: temp items are always kept, the flag of the item they
+ * replaced travels in PROP.ITEM_KEEP. @param {import("@minecraft/server").ItemStack|undefined} src
+ */
+function keepOf(src) {
+  const stashed = quiet(() => src?.getDynamicProperty(PROP.ITEM_KEEP));
+  return typeof stashed === "boolean" ? stashed : !!quiet(() => src?.keepOnDeath);
+}
+
+/**
+ * JSON snapshot of what makes a suit "yours" besides its wear — enchantments, name tag, lore,
+ * keep-on-death — so it survives the trip into the case (suit-off -> suit-up). "" = nothing to keep.
+ * @param {import("@minecraft/server").ItemStack|undefined} src
+ * @returns {string}
+ */
+export function suitMetaOf(src) {
+  if (!src) return "";
+  /** @type {{e?: Array<[string, number]>, n?: string, l?: string[], k?: boolean}} */
+  const meta = {};
+  const ench = quiet(() => src.getComponent("minecraft:enchantable")?.getEnchantments()) ?? [];
+  /** @type {Array<[string, number]>} */
+  const list = [];
+  for (const e of ench) {
+    const id = quiet(() => e.type.id);
+    if (typeof id === "string" && id) list.push([id, e.level]);
+  }
+  if (list.length) meta.e = list;
+  const name = quiet(() => src.nameTag);
+  if (name) meta.n = name;
+  const lore = quiet(() => src.getLore()) ?? [];
+  if (lore.length) meta.l = lore;
+  if (keepOf(src)) meta.k = true;
+  return Object.keys(meta).length ? JSON.stringify(meta) : "";
+}
+
+/**
+ * Re-apply a suitMetaOf() snapshot to a freshly built (non-temp) suit item. Each enchantment is
+ * added on its own: one that no longer exists or no longer fits is skipped, not the whole list.
+ * @param {import("@minecraft/server").ItemStack} item
+ * @param {string|undefined} json
+ */
+export function applySuitMeta(item, json) {
+  if (!item || typeof json !== "string" || !json) return;
+  const meta = quiet(() => JSON.parse(json));
+  if (!meta || typeof meta !== "object") return;
+  const ench = quiet(() => item.getComponent("minecraft:enchantable"));
+  if (ench && Array.isArray(meta.e)) {
+    for (const entry of meta.e) {
+      if (!Array.isArray(entry)) continue;
+      const [id, level] = entry;
+      quiet(() => {
+        const type = typeof id === "string" ? EnchantmentTypes.get(id) : undefined;
+        if (type && Number.isInteger(level) && level > 0) ench.addEnchantment({ type, level });
+      });
+    }
+  }
+  if (typeof meta.n === "string" && meta.n) quiet(() => (item.nameTag = meta.n));
+  if (Array.isArray(meta.l) && meta.l.length) quiet(() => item.setLore(meta.l.map(String)));
+  if (meta.k === true) quiet(() => (item.keepOnDeath = true));
 }
 
 /** Plain `sym:mark_5` item made from any suit variant stack (drops, inventory leftovers). */

@@ -14,14 +14,19 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import (  # noqa: E402
     BASE_ID,
     BP,
+    EXTRA_ANIMS,
     EXTRA_ANIM_KEYS,
+    EXTRA_CONDITION,
+    FLAMES_GEOMETRY,
+    FLAMES_RC,
+    FLAMES_TEXTURE,
+    FLAMES_VARIANTS,
     NEW_VARIANTS,
     REACTOR_DISPLAY_NAME,
     REACTOR_ID,
     RP,
     SUIT_DISPLAY_NAME,
     VARIANTS,
-    WORN_CONDITION,
     attachable_file,
     item_file,
     load_json,
@@ -54,7 +59,7 @@ def build_item(template, identifier):
 
 
 def strip_extras(attachable):
-    """Remove the variant extra animations so the base attachable can be re-derived."""
+    """Remove the variant extras + flame render pass so the base attachable can be re-derived."""
     a = copy.deepcopy(attachable)
     desc = a["minecraft:attachable"]["description"]
     for key in EXTRA_ANIM_KEYS:
@@ -62,20 +67,27 @@ def strip_extras(attachable):
     desc["scripts"]["animate"] = [
         e for e in desc["scripts"]["animate"] if not (isinstance(e, dict) and set(e) & set(EXTRA_ANIM_KEYS))
     ]
+    desc["textures"].pop("flames", None)
+    desc["geometry"].pop("flames", None)
+    desc["render_controllers"] = [r for r in desc["render_controllers"] if r != FLAMES_RC]
     return a
 
 
 def build_attachable(template, identifier):
-    _, texture, extra_key, extra_anim = VARIANTS[identifier]
+    _, texture, extras = VARIANTS[identifier]
     a = copy.deepcopy(template)
     desc = a["minecraft:attachable"]["description"]
     desc["identifier"] = identifier
     desc["textures"] = {"default": texture}
-    if extra_key:
-        desc["animations"][extra_key] = extra_anim
-        animate = desc["scripts"]["animate"]
-        worn_idx = next(i for i, e in enumerate(animate) if isinstance(e, dict) and "worn" in e)
-        animate.insert(worn_idx + 1, {extra_key: WORN_CONDITION})
+    animate = desc["scripts"]["animate"]
+    worn_idx = next(i for i, e in enumerate(animate) if isinstance(e, dict) and "worn" in e)
+    for offset, key in enumerate(extras):
+        desc["animations"][key] = EXTRA_ANIMS[key]
+        animate.insert(worn_idx + 1 + offset, {key: EXTRA_CONDITION[key]})
+    if identifier in FLAMES_VARIANTS:  # SPEC 11.1: suit pass + flame pass
+        desc["textures"]["flames"] = FLAMES_TEXTURE
+        desc["geometry"]["flames"] = FLAMES_GEOMETRY
+        desc["render_controllers"] = list(desc["render_controllers"]) + [FLAMES_RC]
     return a
 
 

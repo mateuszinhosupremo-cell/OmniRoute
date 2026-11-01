@@ -119,12 +119,19 @@ function encodeChar(value, fallback) {
   return /^[\x21-\x7e]$/.test(c) ? c : fallback;
 }
 
-function encodeDigits(value, width) {
+/**
+ * Digits fields printed as text by the UI ("RESISTÊNCIA 72%"): right-aligned with SPACES ("100",
+ * " 72", "  5") because JSON UI cannot strip leading zeros reliably (SPEC 11 item 2). Every
+ * other digits field stays zero-padded (texture frame names).
+ */
+export const SPACE_PADDED_FIELDS = Object.freeze(new Set(["integrity_pct"]));
+
+function encodeDigits(value, width, pad = "0") {
   let n = Math.round(Number(value));
   if (!Number.isFinite(n) || n < 0) n = 0;
   const max = Math.pow(10, width) - 1;
   if (n > max) n = max;
-  return String(n).padStart(width, "0");
+  return String(n).padStart(width, pad);
 }
 
 /**
@@ -137,7 +144,7 @@ export function encodeHud(fields) {
   for (const f of HUD_FIELDS) {
     const raw = fields[f.name] ?? HUD_DEFAULTS[f.name];
     if (f.type === "char") out += encodeChar(raw, String(HUD_DEFAULTS[f.name] ?? "0").charAt(0) || "0");
-    else if (f.type === "digits") out += encodeDigits(raw, f.width);
+    else if (f.type === "digits") out += encodeDigits(raw, f.width, SPACE_PADDED_FIELDS.has(f.name) ? " " : "0");
     else out += utf8Pad(sanitizeText(raw), f.width);
   }
   return out;

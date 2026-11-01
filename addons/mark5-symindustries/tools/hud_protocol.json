@@ -237,7 +237,7 @@
       "name": "integrity_pct",
       "type": "digits",
       "width": 3,
-      "values": "000..100 suit resistance/durability percent (100 = undamaged)"
+      "values": "0..100 suit resistance/durability percent (100 = undamaged), RIGHT-ALIGNED WITH SPACES (\"100\", \" 72\", \"  5\"), never zero-padded: the UI label text is (field + '%') only (SPEC 11 item 2)"
     },
     {
       "name": "integrity_state",

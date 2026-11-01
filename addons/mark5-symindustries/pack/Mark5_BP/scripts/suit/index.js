@@ -3,12 +3,12 @@
 // hooks exported here. Players inside a cinematic (dynamic property sym:mk5_state = "suitup" /
 // "suitoff") are "busy": nothing runs for them except reactor regen.
 
-import { system, world } from "@minecraft/server";
-import { ITEM_SUIT, PROP, SND, TUNING as T, VARIANTS, isSuitId, variantFor, TRANSITION_TICKS } from "./constants.js";
+import { EquipmentSlot, system, world } from "@minecraft/server";
+import { ITEM_CASE, ITEM_SUIT, PROP, SND, TUNING as T, VARIANTS, flyingTwin, groundTwin, isSuitId, variantFor, TRANSITION_TICKS } from "./constants.js";
 import { compassTape, headingFromYaw } from "./codec.js";
-import { costPct, energyFrame, energyPct, energyState, integrityInfo, integrityStep, visorCharge } from "./calc.js";
+import { caseLine, costPct, energyFrame, energyPct, energyState, integrityInfo, integrityStep, visorCharge } from "./calc.js";
 import { actionbar, quiet, resetFlightAnim, worldSound } from "./fx.js";
-import { forceOff, pushAlert, restoreCrosshair, updateHud } from "./hud.js";
+import { forceOff, notify, pushAlert, restoreCrosshair, updateHud } from "./hud.js";
 import { allStates, dropState, getState, peekState, spendOneShot } from "./state.js";
 import { baseSuitFrom, getWornSuit, swapChest } from "./variants.js";
 import * as energy from "./energy.js";
@@ -16,11 +16,13 @@ import * as flight from "./flight.js";
 import * as scanner from "./scanner.js";
 import * as targeting from "./targeting.js";
 import * as input from "./input.js";
+import * as nightVision from "./nightvision.js";
 import { openMenu } from "./menu.js";
 import { bootText, coordsText, energyText, failureText, oneShotAlert, suitText, systemsText } from "./texts.js";
 
 export { getLockedTarget, isLockArmed, onTargetLocked, onTargetLost } from "./targeting.js";
 export { isSuitId };
+export { applySuitMeta, suitMetaOf } from "./variants.js";
 
 /** @typedef {import("@minecraft/server").Player} Player */
 
@@ -92,6 +94,10 @@ function syncSuit(player, st, tick) {
     energy.reboot(player, st, tick);
     return getWornSuit(player);
   }
+  // SPEC 11.1 safety net: the `_flying` twin is worn exactly while flying (reload, death with
+  // keep-on-death, a missed end path...)
+  const want = st.flight ? flyingTwin(worn.id) ?? worn.id : groundTwin(worn.id);
+  if (want !== worn.id && swapChest(player, want)) return getWornSuit(player);
   return worn;
 }
 
@@ -106,10 +112,23 @@ function updateIntegrity(st, worn) {
     st.integWatch = undefined;
     return;
   }
-  const r = integrityStep(st.integWatch, st.integrity.pct);
-  st.integWatch = r.next;
-  if (r.critical) pushAlert(st, "c", `ARMADURA CRÍTICA — RESISTÊNCIA ${st.integrity.pct}%`, 80);
-  else if (r.drop >= 1) pushAlert(st, st.integrity.state === "n" ? "i" : "w", `DANO NA ARMADURA -${r.drop}%`, 30, "armor");
+  const prev = st.integWatch;
+  const r = integrityStep(prev, st.integrity.pct);
+  // the critical warning waits until the HUD can show it (deliverCritical); >= 25 % cancels it
+  st.integWatch = { ...r.next, pendingCritical: r.next.critical && (r.critical || !!prev?.pendingCritical) };
+  if (!r.critical && r.drop >= 1) pushAlert(st, st.integrity.state === "n" ? "i" : "w", `DANO NA ARMADURA -${r.drop}%`, 30, "armor");
+}
+
+/**
+ * SPEC 8.3 critical warning, shown once: only counted as delivered when the HUD is up and past
+ * its boot / failure overlay (otherwise the visor-open / HUD-off alert purge would eat it).
+ * @param {import("./state.js").SuitState} st
+ */
+function deliverCritical(st, tick) {
+  const w = st.integWatch;
+  if (!w?.pendingCritical || !st.hud.on || tick < st.hud.bootUntil || tick < st.hud.failUntil) return;
+  w.pendingCritical = false;
+  pushAlert(st, "c", `ARMADURA CRÍTICA — RESISTÊNCIA ${st.integrity.pct}%`, 80);
 }
 
 /** @param {import("./state.js").SuitState} st */
@@ -164,6 +183,7 @@ function buildHud(player, st, tick, mode) {
       heat: st.heat,
       overheated: st.overheated,
       shieldPct: w?.powered ? pct : 0,
+      nv: nightVision.nvState(st),
     }),
     ...flight.flightHudFields(st),
     ...scanner.targetHudFields(st, st.lock.targetId),
@@ -210,8 +230,9 @@ function tickPlayer(player, tick) {
   energy.integrate(st);
   energy.tickPower(player, st, tick); // may swap the chest item (st.worn refreshed)
   st.hudActive = computeHudActive(st);
-
+  nightVision.tickNightVision(player, st, tick);
   flight.tickHeat(st);
+  flight.tickCreative(player, st, tick); // creative: visual flight follows vanilla flight
   if (st.flight) flight.tickFlight(player, st, tick);
 
   if (st.hudActive) {
@@ -242,12 +263,37 @@ function tickPlayer(player, tick) {
       st.hud.bootAnnounced = true;
       pushAlert(st, "i", `MARK V ONLINE — ENERGIA ${energyPct(st.energy)}%`, 50);
     }
+    deliverCritical(st, tick);
   } else {
     st.hud.activePrev = false;
   }
   input.tickTips(player, st, tick);
+  tickCaseReadout(player, st, tick);
   energy.persist(player, st, tick);
   st.wasWorn = !!st.worn;
+}
+
+/**
+ * Live energy readout on the actionbar while the Maleta Mark V is held (SPEC 13). Only runs when
+ * no suit is worn and no cinematic is playing, and stops as soon as the case leaves the hand so
+ * other actionbar text is not clobbered.
+ * @param {Player} player
+ * @param {import("./state.js").SuitState} st
+ * @param {number} tick
+ */
+function tickCaseReadout(player, st, tick) {
+  if (st.worn || st.busy) {
+    st.caseHeld = false;
+    return;
+  }
+  if ((tick + st.phase) % 10 !== 0) return;
+  const held = quiet(() => player.getComponent("minecraft:equippable")?.getEquipment(EquipmentSlot.Mainhand));
+  if (held?.typeId !== ITEM_CASE) {
+    st.caseHeld = false;
+    return;
+  }
+  st.caseHeld = true;
+  actionbar(player, caseLine(st.energy));
 }
 
 function mainLoop() {
@@ -287,15 +333,20 @@ export function toggleVisor(player) {
     actionbar(player, "§cVista a Mark V primeiro");
     return;
   }
+  if (st.flight || worn.flying) {
+    // SPEC 11.1: refused while flying (the `_flying` variants have no visor animation)
+    notify(player, st, "§cPouse para mexer no visor");
+    return;
+  }
   if (worn.temp || st.transition) {
-    actionbar(player, "§7Aguarde o visor terminar o movimento...");
+    notify(player, st, "§7Aguarde o visor terminar o movimento...");
     return;
   }
   const powered = worn.powered && !st.offline;
   // SPEC 10: the servos cost VISOR_COST energy when powered; offline the faceplate moves by hand
   const charge = visorCharge(powered, st.energy);
   if (!charge.ok) {
-    actionbar(player, "§cENERGIA INSUFICIENTE PARA OS SERVOS DO VISOR");
+    notify(player, st, "§cENERGIA INSUFICIENTE PARA OS SERVOS DO VISOR");
     return;
   }
   const opening = worn.visor === "closed";
@@ -331,6 +382,7 @@ function setHud(player, on) {
     forceOff(player, st, { sound: true });
     restoreCrosshair(player);
     actionbar(player, "§7HUD desligado");
+    nightVision.nvOff(player, st, false); // only with the HUD
   } else {
     st.hud.activePrev = false;
     actionbar(player, "§bHUD ligado");
@@ -368,10 +420,10 @@ function suitOffFromMenu(player) {
   const st = stateOf(player);
   const worn = getWornSuit(player);
   if (!worn || isBusy(player)) return;
-  if (worn.temp || st.transition) return actionbar(player, "§7Aguarde o visor terminar o movimento...");
-  if (st.flight) return actionbar(player, "§cPouse antes de desmontar a armadura");
+  if (worn.temp || st.transition) return notify(player, st, "§7Aguarde o visor terminar o movimento...");
+  if (st.flight) return notify(player, st, "§cPouse antes de desmontar a armadura");
   if (!player.isOnGround || player.isInWater || player.isFlying || player.isGliding) {
-    return actionbar(player, "§cFique parado no chão para desmontar");
+    return notify(player, st, "§cFique parado no chão para desmontar");
   }
   deps.beginSuitOff(player);
 }
@@ -382,6 +434,7 @@ const menuActions = {
   toggleFlight,
   scan: areaScan,
   setLock: (player, armed) => targeting.setLockArmed(player, stateOf(player), armed),
+  setNightVision: (player, auto) => nightVision.setNightVisionAuto(player, stateOf(player), auto),
   suitOff: suitOffFromMenu,
 };
 
@@ -404,6 +457,14 @@ const gestureActions = {
 // ---------------------------------------------------------------------------------------------
 // hooks used by main.js
 // ---------------------------------------------------------------------------------------------
+
+/**
+ * Status message for main.js: HUD alert line while the main HUD is on screen, else the actionbar.
+ * @param {Player} player @param {string} text
+ */
+export function suitNotify(player, text) {
+  notify(player, peekState(player.id), text);
+}
 
 /** Any suit variant worn in the chest slot. @param {Player} player */
 export function isSuitWorn(player) {
@@ -439,11 +500,48 @@ export function onSuitUpComplete(player) {
 }
 
 /**
- * Called first thing by main.js beginSuitOff: everything off, nothing left behind.
+ * SPEC 12.2: the suit-up costs SUITUP_COST, paid when the cinematic starts (throw or placed case).
+ * Refused (message with the current %, throttled) when the energy is short: the case stays.
+ * @param {Player} player
+ * @returns {boolean} true = paid, start the suit-up
+ */
+export function chargeSuitUp(player) {
+  const st = stateOf(player);
+  const tick = system.currentTick;
+  if (st.energy < T.SUITUP_COST) {
+    if (tick - st.suitUpRefusedAt >= 40) {
+      st.suitUpRefusedAt = tick;
+      actionbar(player, `§cENERGIA INSUFICIENTE PARA MONTAR A MARK V (precisa ${costPct(T.SUITUP_COST)}%) §7— energia atual ${energyPct(st.energy)}%`);
+    }
+    return false;
+  }
+  spendOneShot(st, "montagem", "montagem da armadura", T.SUITUP_COST, tick);
+  st.oneShot.shown = true; // no HUD during the cinematic: diagnostics only
+  energy.persist(player, st, tick, true);
+  return true;
+}
+
+/**
+ * SPEC 12.2: the suit-off costs SUITOFF_COST when available; without it the suit still comes off
+ * by hand (never trap the player in the suit). @param {Player} player @param {import("./state.js").SuitState} st
+ */
+function chargeSuitOff(player, st, tick) {
+  if (spendOneShot(st, "desmontagem", "desmontagem da armadura", T.SUITOFF_COST, tick)) {
+    st.oneShot.shown = true;
+    actionbar(player, `§7Desmontagem §c-${costPct(T.SUITOFF_COST)}%§7 de energia`);
+  } else {
+    actionbar(player, "§7Desmontagem manual (sem energia)");
+  }
+}
+
+/**
+ * Called first thing by main.js beginSuitOff: pays the suit-off, everything off, nothing left behind.
  * @param {Player} player
  */
 export function beforeSuitOff(player) {
   const st = stateOf(player);
+  chargeSuitOff(player, st, system.currentTick);
+  nightVision.nvOff(player, st, false);
   if (st.flight) flight.stop(player, st);
   else resetFlightAnim(player); // leave the sym_mk5_flight controller idle for the cinematic
   forceOff(player, st);
@@ -460,15 +558,21 @@ export function beforeSuitOff(player) {
 }
 
 /**
- * Safety net for main.js recover(): a transition item worn without a running transition
- * (world reload) becomes its final variant.
+ * Safety net for main.js recover(): a transition item worn without a running transition, or a
+ * `_flying` variant worn while not flying (world reload), becomes its final / non-flying variant.
  * @param {Player} player
  */
 export function recoverWornSuit(player) {
   if (isBusy(player)) return;
   const worn = getWornSuit(player);
-  if (!worn?.temp) return;
+  if (!worn) return;
   const st = stateOf(player);
+  if (worn.flying && !st.flight) {
+    // SPEC 11.1: a `_flying` variant worn while not flying (reload) -> its non-flying twin
+    swapChest(player, groundTwin(worn.id));
+    return;
+  }
+  if (!worn.temp) return;
   if (st.transition && st.transition.from === worn.id) return; // still animating
   st.transition = undefined;
   swapChest(player, resolvedFinal(st, worn.id));
@@ -533,6 +637,9 @@ export function initSuitSystems(options) {
         const st = peekState(player.id);
         if (!st) return;
         flight.abort(st);
+        st.visualLatch = false;
+        nightVision.nvOff(undefined, st, false); // death clears the effects
+        resetFlightAnim(player); // the hover / fly / boost loops never stop on their own
         targeting.dropLock(player, st, "pilot", { silent: true });
         scanner.clearScan(st);
         scanner.clearLook(st);
@@ -553,6 +660,18 @@ export function initSuitSystems(options) {
     },
     { entityTypes: ["minecraft:player"] }
   );
+
+  // through a portal the actor is re-added for other clients and loses the looping flight pose:
+  // forget the current clip so tickFlight replays it (or leave the controller idle)
+  world.afterEvents.playerDimensionChange.subscribe((ev) => {
+    try {
+      const st = peekState(ev.player.id);
+      if (st?.flight) st.flight.anim = "";
+      else resetFlightAnim(ev.player);
+    } catch (err) {
+      console.warn(`[Mark V] dimension change: ${err}`);
+    }
+  });
 
   // save while the player object is still valid
   world.beforeEvents.playerLeave.subscribe((ev) => {

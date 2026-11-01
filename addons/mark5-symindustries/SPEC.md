@@ -574,3 +574,146 @@ long blue jet. It looks emissive (glows even in shade).
   alert line for ~1 s).
 - Confirmed with the user: the 3D armor in the HUD is the player's real model (hud_player_renderer),
   identical to the world one (same LEDs/visor state), spinning around the vertical axis.
+
+## 11. Fixes from the user's first in-game test (video) + "clean flames"
+
+Observed in game (phone, Bedrock 1.26): flight, HUD frame, compass, coords, LEDs, suit_text,
+energy_text, the spinning 3D armor all WORK. Broken:
+
+1. **Magenta square instead of the energy gauge when energy < ~50 %.** Root cause: JSON UI
+   coerces numeric-looking strings, so `'textures/sym/hud/energy_' + '09'` becomes `energy_9`
+   (leading zero dropped) → missing texture. Frames ≥ 10 work. Same bug for every digits frame
+   field used in a texture path (energy, integrity, thrust, hp_<c>_NN, lock, boot frames …).
+   FIX (hud): the texture generator must ALSO write every frame without leading zeros
+   (`energy_0..energy_9`, `integrity_0..9`, `thrust_0..9`, `hp_<c>_0..9`, …) next to the padded
+   names, so both engine behaviours resolve. Tests must assert both names exist.
+2. **"RESISTÊNCIA" number is blank.** The leading-zero-stripping expression does not work in the
+   engine. FIX: script encodes `integrity_pct` RIGHT-ALIGNED WITH SPACES ("100", " 72", "  5");
+   UI label text = `(field + '%')` only (works whether or not the engine coerces it). Update the
+   protocol doc + tests.
+3. **The whole right column never renders** (no systems / target / scan panel at all, even
+   though `systems_text` should be visible most of the time) → "mob info not showing". Rebuild it
+   with only the most basic, vanilla-proven constructs: NO stack_panel (absolute offsets for each
+   panel), NO flip_book `uv` animation (static radar image, alpha blink allowed), NO dynamic
+   `#texture` image that has children (use one static frame image per target class toggled by
+   `#visible`, and put the dynamic hp bar as a sibling). Same simplification anywhere else these
+   constructs are used. Keep phone-safe placement (right side, below the top visor line, above the
+   jump/sneak buttons ~ lower 45 % of the screen on the right).
+
+### 11.1 Clean geometry flames (user reference `ref/user/flight_reference_clean.jpg`)
+Replace particle flames with GEOMETRY attached to the suit: compact, solid, very bright
+yellow-white cones under each palm and each boot (like the reference: ~4x5x4 px outer cone,
+tapered with stacked boxes, white-hot core, slightly lighter top), flickering.
+- suit: new geometry `geometry.sym.mk5_flames` (own file) whose top-level bones are `rightArm`,
+  `leftArm`, `rightLeg`, `leftLeg` (same names/pivots as `geometry.sym.mk5`, so they follow the
+  player's limbs and flight poses exactly like the armor), with child bones `mk5_flame_rh`,
+  `mk5_flame_lh` (just below the glove bottom, y ≈ 12) and `mk5_flame_rf`, `mk5_flame_lf` (just
+  below the boot soles, y ≈ 0), pivots at the nozzle so a y-scale flicker grows away from it.
+  Texture `textures/sym/mk5_flames.png` (clean gradient, emissive: use alpha ≈ 140–200 so
+  `entity_emissive_alpha` makes it glow). New render controller `controller.render.sym_mk5_flames`
+  (Geometry.flames / Texture.flames / Material.default). Animation
+  `animation.sym.mk5.flames_flicker` (loop, fast subtle y-scale/xz-scale flicker per flame with
+  different phases).
+- suit: two new FINAL variants worn only while flying (powered):
+  `sym:mark_5_flying` (visor closed) and `sym:mark_5_open_flying` (visor open pose) — protection
+  20, texture mk5, render_controllers `["controller.render.sym_mk5", "controller.render.sym_mk5_flames"]`,
+  geometry `{default: geometry.sym.mk5, flames: geometry.sym.mk5_flames}`, plus the flicker
+  animation (worn condition). Add them to the FULL set (and open_flying to FACE VISIBLE).
+- suit: new TEMP variant `sym:mark_5_powerup` (24 ticks, texture mk5, `eyes_boot`), and REMOVE
+  `eyes_boot` from `sym:mark_5` (so swapping back after a flight does not flicker the eyes);
+  `visor_closing` ends with a short eyes flicker-on instead.
+- script: engage flight → swap the worn powered final variant to its `_flying` twin; flight end
+  (any reason) → swap back. Visor toggle is refused while flying ("Pouse para mexer no visor").
+  Power loss in flight: end flight (swap back) first, then the normal power-down. Reboot uses
+  `sym:mark_5_powerup` for 24 ticks then `sym:mark_5` (open visor → straight to `sym:mark_5_open`).
+  recover(): a `_flying` variant worn while not flying (reload) → its non-flying twin;
+  `sym:mark_5_powerup` → `sym:mark_5`.
+- script: stop spawning `sym:mk5_thrust`, `sym:mk5_thrust_glow` and `sym:mk5_smoke` during
+  flight (clean look). Keep takeoff blast, sonic boom, landing dust.
+
+## 12. Change request #4 — auto night vision, suit-up/off energy, effects renewal, creative
+
+### 12.1 Auto-adaptive night vision (script)
+- Requires `@minecraft/server` **2.3.0** (stable since 1.21.120; the user's game is ≥ 1.26.0):
+  bump the BP manifest dependency and the typecheck harness (`tests/typecheck/tsconfig.json` paths →
+  `ref/mcapi/minecraft-server-2.3.0/package/index.d.ts`; copy it there from
+  `/home/user/OmniRoute/_artifacts/mcapi/s2.3.0/package/`). Uses `Dimension.getLightLevel(loc)` and
+  `Dimension.getSkyLightLevel(loc)` (both throw in unloaded chunks → guard) + `world.getTimeOfDay()`.
+- Every 10 ticks while the suit is worn, powered, visor CLOSED and the feature enabled: sample the
+  light at the head. `dayFactor` from time of day (day 1.0, night ≈ 0.27, smooth at dusk/dawn;
+  Nether/End: use the total light only). `effective = max(total > sky ? total : 0, sky * dayFactor)`.
+  Turn ON when `effective ≤ 6` for 2 consecutive samples, OFF when `≥ 9` (hysteresis).
+- ON: `addEffect("night_vision", 400, { amplifier: 0, showParticles: false })`, refreshed when
+  < 300 ticks remain (never let it reach the < 10 s flicker); remember that WE applied it and only
+  remove an effect we applied (`removeEffect`) when turning off, visor opening, power loss, suit
+  removal or HUD/feature disabled. Drain `NV_DRAIN = 0.5 /s` while on (in the breakdown +
+  diagnostics as "Visão noturna"). Sound `sym.mk5.night_vision` + HUD info alert
+  "VISÃO NOTURNA ATIVADA" / "VISÃO NOTURNA DESATIVADA"; systems_text shows `NV AUTO` state.
+- Menu button "Visão noturna: AUTO / DESLIGADA" (persisted `sym:mk5_nv`, default AUTO).
+
+### 12.2 Transformation costs energy (script, main.js)
+- Suit-up costs `SUITUP_COST = 80` (8 %) at the start of the cinematic (throw or placed case).
+  If energy < cost: refuse with "ENERGIA INSUFICIENTE PARA MONTAR A MARK V (precisa 8%)" + the
+  current % (the case stays in hand / on the ground).
+- Suit-off costs `SUITOFF_COST = 40` (4 %) when available; if not, the suit-off still happens
+  ("Desmontagem manual (sem energia)") — never trap the player in the suit.
+- Show both in the diagnostics screen as one-shot costs.
+
+### 12.3 Creative mode flight (script)
+In creative, the vanilla double-tap already toggles creative flight. Do not fight it: while the
+suit is powered and `player.isFlying` is true, run our flight in VISUAL mode — poses, geometry
+flames (`_flying` variant swap), sounds, HUD telemetry, energy drain — but NO applyKnockback (vanilla
+creative physics move the player); mode from the real velocity (`getVelocity`): ~0 → hover,
+moving → cruise, sprinting → boost. When `isFlying` turns false → end flight. If energy is too low
+in creative, show the warning but cannot stop vanilla flight (fine).
+
+### 12.4 Effects renewal — "clean" look (fx)
+The user finds the effects "meio paia". Redesign the remaining flight FX in a clean, crisp style
+(solid shapes, fewer but sharper sprites, no muddy random smoke): `sym:mk5_takeoff` (bright flash +
+crisp shockwave ring + a few sparks), `sym:mk5_landing` (clean dust ring + short debris),
+`sym:mk5_boom` (sharp white vapor ring/cone), NEW `sym:mk5_trail` (thin bright short contrail
+segment, spawned by the script from each boot every tick only while boosting; inputs `dir`, `vel`).
+Also NEW sound `sym.mk5.night_vision` (soft rising optical "whirr" + click, 0.4 s).
+
+## 13. Change request #5 — suitcase energy readout (script, applied by the lead after round 3)
+
+While a player HOLDS the Maleta Mark V in the main hand (and is not in a cinematic / not wearing a
+suit), show a live actionbar readout, refreshed every 10 ticks (only while the item is held; stop
+as soon as it leaves the hand so other actionbar text is not clobbered):
+- Enough energy (>= SUITUP_COST): `§bMALETA MARK V §7• §fENERGIA §b<pct>% §7• §aPRONTA PARA VESTIR`
+- Not enough: `§bMALETA MARK V §7• §fENERGIA §c<pct>% §7• §cPRECISA DE 8% §7• §f~<s>s`
+  where `<s>` = ceil((SUITUP_COST - energy) / REGEN) seconds to reach the cost.
+Energy is the player's own reactor charge (the same pool the suit uses), so it reads the same value
+before and after suiting up. Also append the same information to the Arc Reactor hint and show the
+percentage in the suit-up refusal message (SPEC 12.2).
+
+## 14. Change request #6 — helmet tilt bug (from the user's video) + helmet pose pinning
+
+### 14.1 The "helmet opens / tilts way back" bug — CONFIRMED ROOT CAUSE
+`animation.sym.player.mk5_fly` and `mk5_boost` compensate the root tilt on the `head` bone
+(`math.clamp(this - <root tilt>, -75, 75) ...`). That is WRONG: vanilla's
+`animation.humanoid.look_at_target.default` already has `"relative_to": {"rotation": "entity"}`,
+so the head is oriented relative to the ENTITY, not to the rotated `root` bone — no compensation is
+needed. Ours double-corrects, pitching the head (and with it the whole helmet, which is parented to
+`head`) up to 75° backwards, which reads in game as "the helmet opened / tilts way back".
+FIX (suit): REMOVE the `head` channel from `mk5_fly` and `mk5_boost` entirely (vanilla look-at
+handles it). Vanilla's swimming look-at only lerps the pitch toward -45° for style; if a stylistic
+lift is wanted in boost, it must be a SMALL additive value (<= 15°), never a compensation of the
+root tilt. Add a regression check in tests/suit_validate.py: no flight animation may reference
+`this` on the `head` bone, and no head-bone value may exceed 15° in magnitude.
+
+### 14.2 Pin the helmet pose on every worn variant (robustness)
+No animation currently pins the faceplate bones, so after each chest-item swap (v2 swaps often:
+power-up, power-down, visor, flight) the mask falls back to the model's rest pose and can be seen
+mid-transition. Add two looping attachable animations that hold the faceplate explicitly and give
+every worn variant the right one (in `scripts.animate`, same condition as `worn`):
+- `animation.sym.mk5.visor_shut` (loop): `mk5_mask`, `mk5_Left_mask`, `mk5_Right_mask`,
+  `mk5_mainframe`, `mk5_upper_face`, `mk5_lower_face` (+ the two lower-face halves) at the closed
+  rest pose (rotation [0,0,0], position [0,0,0], scale 1); eyes NOT touched (the eye flicker clips
+  own that bone).
+- `animation.sym.mk5.visor_up` (loop): the open pose (mask rotation [-75,0,0], position [0,5,3];
+  side plates at rest), used by `*_open*` variants instead of `visor_shut`.
+Closed variants: `sym:mark_5`, `sym:mark_5_flying`, `sym:mark_5_powerup`, `sym:mark_5_powerdown`,
+`sym:mark_5_offline` → `visor_shut`. Open variants: `sym:mark_5_open`, `sym:mark_5_open_flying`,
+`sym:mark_5_offline_open` → `visor_up`. The transition variants (`*_opening` / `*_closing`) keep
+only their own transition clip. Validator: every worn final variant declares exactly one of the two.

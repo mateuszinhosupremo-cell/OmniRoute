@@ -219,6 +219,15 @@
           "load_on_low_memory": true
         }
       ]
+    },
+    "sym.mk5.night_vision": {
+      "category": "player",
+      "sounds": [
+        {
+          "name": "sounds/sym/night_vision",
+          "load_on_low_memory": true
+        }
+      ]
     }
   }
 }

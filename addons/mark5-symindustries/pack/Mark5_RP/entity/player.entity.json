@@ -44,7 +44,7 @@
         "animate": [
           "root",
           {
-            "sym_paperdoll_spin": "variable.is_paperdoll && (query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_open', 'sym:mark_5_opening', 'sym:mark_5_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_powerdown', 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline_closing', 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1'))"
+            "sym_paperdoll_spin": "variable.is_paperdoll && (query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5', 'sym:mark_5_powerup', 'sym:mark_5_flying', 'sym:mark_5_open') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_open_flying', 'sym:mark_5_opening', 'sym:mark_5_closing', 'sym:mark_5_powerdown') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_offline', 'sym:mark_5_offline_open', 'sym:mark_5_offline_opening', 'sym:mark_5_offline_closing') || query.is_item_name_any('slot.armor.chest', 0, 'sym:mark_5_assembling_4', 'sym:mark_5_disassembling_1'))"
           }
         ],
         "variables": {

@@ -509,6 +509,7 @@ def diagnostics(ctx, ns_root):
         "root/main/right_column/systems_panel": "systems panel",
         "root/main/right_column/scan_panel": "scan panel",
         "root/main/right_column/target_panel": "target panel",
+        "root/main/right_column/target_panel_low": "target panel",
         "root/main/top_center/alert_box": "alert banner",
         "root/main/flight_panel": "flight panel",
         "root/main/center/lock_tag": "lock tag",
@@ -581,6 +582,8 @@ def main():
     problems = 0
     jobs = [(k, 640, 360, 2, False, f"hud_preview_{k}.png") for k in PREVIEWS]
     jobs += [(k, 533, 240, 3, True, f"hud_preview_phone_{k}.png") for k in PHONE_PREVIEWS]
+    # small phone (GUI height ~200: 20:9 screen at a large GUI scale)
+    jobs += [(k, 444, 200, 3, True, f"hud_preview_phone200_{k}.png") for k in PHONE_PREVIEWS]
     if "script_texts" in data:  # texts produced by the real script builders
         jobs.append(("script_texts", 640, 360, 2, False, "hud_preview_script_texts.png"))
     for key, W, H, S, phone, fn in jobs:

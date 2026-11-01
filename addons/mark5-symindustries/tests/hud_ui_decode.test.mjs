@@ -7,7 +7,10 @@
 // semantics, every computed #texture path exists, and the files on disk are exactly what the
 // generator produces (offsets cannot drift from the protocol).
 // String subtraction is evaluated with BOTH plausible engine semantics ("remove every
-// occurrence" and "remove the first occurrence"); every expression must give the same result.
+// occurrence" and "remove the first occurrence"), and numeric-looking strings with BOTH engine
+// behaviours (kept as strings / coerced to numbers, e.g. '09' -> 9: SPEC 11 item 1); every
+// expression must give the same visible result and every computed texture path must exist under
+// all four combinations.
 //
 // Run: node --test tests/hud_ui_decode.test.mjs
 import test from "node:test";
@@ -15,9 +18,9 @@ import assert from "node:assert/strict";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { parse, evalExpr, resolveTree, encodeHud, offString, utf8Len } from "../tools/hud/jsonui_eval.mjs";
+import { parse, evalExpr, resolveTree, encodeHud, offString, utf8Len, NUMERIC_MODES, looksNumeric, coerceValue, SPACE_PADDED } from "../tools/hud/jsonui_eval.mjs";
 import { STATES, EXTRA_STATES } from "../tools/hud/sample_states.mjs";
-import { buildNamespace, buildHudScreen, buildUiDefs, fld, INTEGRITY_TEXT, NS, ROOT_CONTROL, EXPR } from "../tools/hud/build_ui.mjs";
+import { buildNamespace, buildHudScreen, buildUiDefs, fld, INTEGRITY_TEXT, NS, ROOT_CONTROL, EXPR, FLIGHT_PANEL_BOTTOM, RIGHT_H } from "../tools/hud/build_ui.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const RP = join(ROOT, "pack", "Mark5_RP");
@@ -28,6 +31,9 @@ const DOC = Object.fromEntries(JSON.parse(readFileSync(join(ROOT, "tools", "hud_
 const F = Object.fromEntries(PROTO.fields.map((f) => [f.name, f]));
 const T = "#hud_title_text_string";
 const SEMANTICS = ["all", "first"];
+/** Every engine-behaviour combination: string subtraction x numeric-string coercion. */
+const ENGINES = SEMANTICS.flatMap((minus) => NUMERIC_MODES.map((numeric) => ({ minus, numeric })));
+const eng = (o) => `${o.minus}/${o.numeric}`;
 const readJson = (p) => JSON.parse(readFileSync(p, "utf8"));
 const NSJ = readJson(join(UI, "sym_mk5_hud.json"));
 const HUDJ = readJson(join(UI, "hud_screen.json"));
@@ -44,14 +50,16 @@ function controls(def, path = ROOT_CONTROL, out = []) {
 const CONTROLS = controls(NSJ[ROOT_CONTROL]);
 const byPath = (nodes) => Object.fromEntries(nodes.map((n) => [n.path, n]));
 
-/** Enumerate every legal value of a char/digits field from the protocol "values" doc. */
+/** Enumerate every legal value of a char/digits field from the protocol "values" doc
+ *  (integrity_pct: right-aligned with spaces, "  0".."100"). */
 function legalValues(f) {
   const values = DOC[f.name].values;
   if (values && typeof values === "object") return Object.keys(values);
-  const m = /^(\d+)\.\.(\d+)/.exec(String(values || ""));
+  const m = /(\d+)\D{0,3}\.\.\D{0,3}(\d+)/.exec(String(values || ""));
   if (!m) throw new Error(`cannot enumerate ${f.name}`);
   const out = [];
-  for (let i = Number(m[1]); i <= Number(m[2]); i++) out.push(String(i).padStart(f.width, "0"));
+  const pad = SPACE_PADDED.has(f.name) ? " " : "0";
+  for (let i = Number(m[1]); i <= Number(m[2]); i++) out.push(String(i).padStart(f.width, pad));
   return out;
 }
 
@@ -120,16 +128,18 @@ test("every protocol field is consumed by the UI", () => {
     const used = src.includes(JSON.stringify(fld(f.name)).slice(1, -1)) || (f.name === "mode" && src.includes(`'%.${f.end}s'`));
     assert.ok(used, `field ${f.name} is never read`);
   }
-  // every text field has exactly one label whose #text is exactly that field
+  // every text field has exactly one label whose #text is exactly that field (target_text: two
+  // copies, top / below the scan panel, never visible together — checked per state)
   for (const f of PROTO.fields.filter((x) => x.type === "text")) {
     const labels = CONTROLS.filter(({ def }) => (def.bindings || []).some((b) => b.target_property_name === "#text" && b.source_property_name === fld(f.name)));
-    assert.equal(labels.length, 1, `text field ${f.name} bound by ${labels.length} labels`);
-    const d = labels[0].def;
+    assert.equal(labels.length, f.name === "target_text" ? 2 : 1, `text field ${f.name} bound by ${labels.length} labels`);
+    for (const { def: d } of labels) {
     assert.equal(d.type, "label");
     assert.equal(d.localize, false, `${f.name} must not be localized`);
     assert.equal(d.shadow, true, `${f.name} needs a shadow`);
     // fields are space padded: centre/right alignment would shift the visible text
     assert.ok(!d.text_alignment || d.text_alignment === "left", `${f.name} label must be left aligned`);
+    }
   }
 });
 
@@ -163,13 +173,16 @@ function expectedVisibility(v, headerOk) {
     "root/boot": m === "2" || m === "3",
     "root/boot/boot_frame/header_boot": m === "2",
     "root/boot/boot_frame/header_fail": m === "3",
+    "root/boot/boot_frame/frame_boot": m === "2",
+    "root/boot/boot_frame/frame_fail": m === "3",
     "root/main/right_column/scan_panel": v.scan !== "0",
     "root/main/right_column/scan_panel/radar_idle": v.scan === "1",
     "root/main/right_column/scan_panel/radar_sweep": v.scan === "2",
     "root/main/right_column/scan_panel/sweep": v.scan === "2",
-    "root/main/right_column/gap": v.scan !== "0" && v.target_class !== "0",
-    "root/main/right_column/target_panel": v.target_class !== "0",
+    "root/main/right_column/target_panel": v.target_class !== "0" && v.scan === "0",
+    "root/main/right_column/target_panel_low": v.target_class !== "0" && v.scan !== "0",
     "root/main/right_column/systems_panel": v.scan === "0" && v.target_class === "0",
+    ...Object.fromEntries(["target_panel", "target_panel_low"].flatMap((p) => ["h", "n", "p", "j"].map((c) => [`root/main/right_column/${p}/frame_${c}`, v.target_class === c]))),
     "root/main/top_center/alert_box": v.alert !== "0",
     "root/main/top_center/alert_box/alert_flash": v.alert === "c",
     "root/main/center/lock_ring": v.lock_frame !== "0",
@@ -183,16 +196,24 @@ function expectedVisibility(v, headerOk) {
   };
 }
 
-/** Checks one title string against its field values (both string-subtraction semantics). */
+/** A field value as an engine behaviour delivers it (coerce: numeric-looking -> number). */
+const asEngine = (v, numeric) => (numeric === "coerce" ? coerceValue(v) : v);
+
+/** Text fields: path -> field for every label bound to exactly one text field. */
+const TEXT_LABELS = CONTROLS.flatMap(({ path, def }) =>
+  (def.bindings || []).filter((b) => b.target_property_name === "#text" && FIELD_EXPR[b.source_property_name]).map((b) => [path, FIELD_EXPR[b.source_property_name]]));
+
+/** Checks one title string against its field values under every engine behaviour. */
 function checkTitle(label, title, values) {
   const headerOk = title.startsWith(PROTO.header);
   const exp = expectedVisibility(values, headerOk);
-  for (const minus of SEMANTICS) {
-    const nodes = resolveTree(NSJ, ROOT_CONTROL, title, { minus });
+  for (const opts of ENGINES) {
+    const tag = `${label} [${eng(opts)}]`;
+    const nodes = resolveTree(NSJ, ROOT_CONTROL, title, opts);
     const P = byPath(nodes);
     for (const p of Object.keys(exp)) assert.ok(P[p], `${label}: missing control ${p}`);
     for (const [p, want] of Object.entries(exp)) {
-      assert.equal(P[p].own.visible, want, `${label} [${minus}]: ${p} visible=${P[p].own.visible}, expected ${want}`);
+      assert.equal(P[p].own.visible, want, `${tag}: ${p} visible=${P[p].own.visible}, expected ${want}`);
     }
     for (const n of nodes) {
       // exact field extraction for every text binding
@@ -200,19 +221,26 @@ function checkTitle(label, title, values) {
         if (b.binding_type !== "view") continue;
         const field = FIELD_EXPR[b.source_property_name];
         if (field) {
-          const got = evalExpr(b.source_property_name, { [T]: title }, { minus });
-          assert.equal(got, values[field], `${label} [${minus}]: ${n.path} reads ${field} as ${JSON.stringify(got)}`);
+          const got = evalExpr(b.source_property_name, { [T]: title }, opts);
+          assert.equal(got, asEngine(values[field], opts.numeric), `${tag}: ${n.path} reads ${field} as ${JSON.stringify(got)}`);
         }
+        if (b.target_property_name === "#visible") assert.equal(typeof n.bound.visible, "boolean", `${tag}: ${n.path} #visible is not a boolean`);
       }
       // every computed texture exists (also for hidden controls: the engine still binds them)
       if (n.def.texture === "#texture") {
-        assert.equal(typeof n.own.texture, "string", `${label}: ${n.path} has no texture`);
-        assert.ok(texExists(n.own.texture), `${label} [${minus}]: ${n.path} -> missing ${n.own.texture}.png`);
+        assert.equal(typeof n.own.texture, "string", `${tag}: ${n.path} has no texture`);
+        assert.ok(texExists(n.own.texture), `${tag}: ${n.path} -> missing ${n.own.texture}.png`);
       }
     }
-    // big resistance readout
+    // a text field is never shown twice at once (target_text has two mutually exclusive copies)
+    const shown = {};
+    for (const [p, field] of TEXT_LABELS) if (P[p].visible) shown[field] = (shown[field] || 0) + 1;
+    for (const [field, k] of Object.entries(shown)) assert.equal(k, 1, `${tag}: ${field} shown by ${k} labels`);
+    if (values.mode === "1" && headerOk) assert.equal(shown.target_text || 0, values.target_class !== "0" ? 1 : 0, `${tag}: target_text`);
+    // big resistance readout: (field + '%'), field right-aligned with spaces by the script
     const pct = P["root/main/left_column/suit_panel/integrity_pct_n"].own.text;
-    assert.equal(pct, `${Number(values.integrity_pct)}%`, `${label} [${minus}]: integrity readout ${pct}`);
+    assert.equal(typeof pct, "string", `${tag}: integrity readout is not a string`);
+    assert.equal(pct.trim(), `${Number(values.integrity_pct)}%`, `${tag}: integrity readout ${JSON.stringify(pct)}`);
   }
 }
 
@@ -246,10 +274,16 @@ test("every legal value of every char/digits field (textures exist, visibility p
   assert.ok(n > 150);
 });
 
-test("resistance readout strips leading zeros for 000..100", () => {
+test("resistance readout: (field + '%') with the space-padded field, 0..100, every engine", () => {
+  assert.equal(INTEGRITY_TEXT, `(${fld("integrity_pct")} + '%')`);
   for (let i = 0; i <= 100; i++) {
-    const { title } = encodeHud(PROTO, { ...STATES.idle.fields, integrity_pct: String(i).padStart(3, "0") });
-    for (const minus of SEMANTICS) assert.equal(evalExpr(INTEGRITY_TEXT, { [T]: title }, { minus }), `${i}%`);
+    const { title, values } = encodeHud(PROTO, { ...STATES.idle.fields, integrity_pct: String(i) });
+    assert.equal(values.integrity_pct, String(i).padStart(3, " "), "script sends it right-aligned with spaces");
+    for (const opts of ENGINES) {
+      const got = evalExpr(INTEGRITY_TEXT, { [T]: title }, opts);
+      const want = opts.numeric === "coerce" ? `${i}%` : `${String(i).padStart(3, " ")}%`;
+      assert.equal(got, want, `${i} [${eng(opts)}]`);
+    }
   }
 });
 
@@ -292,20 +326,105 @@ test("HUD off string and foreign titles: our root hidden, vanilla title restored
     ["§6Vitória Épica", true, false],
     ["MK5", true, false],
     ["MK5h1abc", true, false],
+    ["12345", true, false],
+    ["007", true, false],
     [encodeHud(PROTO, STATES.idle.fields).title, false, true],
     [encodeHud(PROTO, STATES.boot.fields).title, false, true],
     [encodeHud(PROTO, STATES.failure.fields).title, false, true],
   ];
   for (const [title, vanillaVisible, ours] of cases) {
-    for (const minus of SEMANTICS) {
+    for (const opts of ENGINES) {
       const sc = { [T]: title };
-      assert.equal(!!evalExpr(titleVisible, sc, { minus }), vanillaVisible, `vanilla title for ${JSON.stringify(title.slice(0, 12))}`);
-      assert.equal(!!evalExpr(EXPR.rootVisible, sc, { minus }), ours, `our root for ${JSON.stringify(title.slice(0, 12))}`);
-      assert.equal(!!evalExpr(dollVisible, sc, { minus }), !ours, "vanilla paper doll hidden only while our HUD is shown");
-      const root = resolveTree(NSJ, ROOT_CONTROL, title, { minus })[0];
+      assert.equal(!!evalExpr(titleVisible, sc, opts), vanillaVisible, `vanilla title for ${JSON.stringify(title.slice(0, 12))} [${eng(opts)}]`);
+      assert.equal(!!evalExpr(EXPR.rootVisible, sc, opts), ours, `our root for ${JSON.stringify(title.slice(0, 12))} [${eng(opts)}]`);
+      assert.equal(!!evalExpr(dollVisible, sc, opts), !ours, "vanilla paper doll hidden only while our HUD is shown");
+      const root = resolveTree(NSJ, ROOT_CONTROL, title, opts)[0];
       assert.equal(root.visible, ours);
     }
   }
+});
+
+test("flight panel sits low, just above hearts/hunger, clear of the reticle on phones", () => {
+  // vanilla HUD rows above the hotbar: hearts / hunger H-39..H-32, armour H-49..H-42. The script
+  // does not use the actionbar during flight, so overlapping its box (H-76..H-61) is fine.
+  const ARMOUR_ROW_TOP = 49;
+  const RETICLE_CORE = 14; // reticle artwork spans 13.5..15.3 px from the screen centre
+  const fp = byPath(CONTROLS)["root/main/flight_panel"].def;
+  assert.equal(fp.anchor_from, "bottom_middle");
+  assert.equal(fp.anchor_to, "bottom_middle");
+  assert.deepEqual(fp.offset, [0, -FLIGHT_PANEL_BOTTOM]);
+  assert.ok(FLIGHT_PANEL_BOTTOM >= 52 && FLIGHT_PANEL_BOTTOM <= 60, `about [0,-56], got ${FLIGHT_PANEL_BOTTOM}`);
+  assert.ok(FLIGHT_PANEL_BOTTOM >= ARMOUR_ROW_TOP + 3, "flight panel overlaps the armour / hearts rows");
+  const top = FLIGHT_PANEL_BOTTOM + fp.size[1];
+  for (const H of [200, 208, 216, 240, 270]) {
+    assert.ok(H - top >= H / 2 + RETICLE_CORE, `GUI height ${H}: flight panel top ${H - top} overlaps the reticle (${H / 2 + RETICLE_CORE})`);
+  }
+  // the lock tag sits above the reticle, so it never collides with the flight panel
+  const tag = byPath(CONTROLS)["root/main/center/lock_tag"].def;
+  assert.ok(tag.offset[1] < 0, "lock tag must be above the reticle");
+});
+
+test("right column: absolute panels in the upper part of the screen, below the top visor line", () => {
+  const rc = byPath(CONTROLS)["root/main/right_column"].def;
+  assert.equal(rc.type, "panel");
+  assert.equal(rc.anchor_from, "top_right");
+  assert.deepEqual(rc.size, [150, RIGHT_H]);
+  const kids = Object.fromEntries((rc.controls || []).map((c) => Object.entries(c)[0]));
+  assert.deepEqual(Object.keys(kids).sort(), ["scan_panel", "systems_panel", "target_panel", "target_panel_low"]);
+  for (const [k, d] of Object.entries(kids)) {
+    assert.equal(d.type, "panel", k);
+    assert.equal(d.anchor_from, "top_left", k);
+    assert.ok(Array.isArray(d.offset) && d.offset.every((v) => typeof v === "number"), `${k}: absolute offset`);
+    assert.ok(d.offset[1] + d.size[1] <= RIGHT_H, `${k} outside the column`);
+  }
+  // the common states (systems / target / scan alone) stay in the upper ~55 % of a 200 px phone
+  // screen (column top "15% + 4px"), above the jump / sneak buttons
+  for (const k of ["systems_panel", "target_panel", "scan_panel"]) {
+    const d = kids[k];
+    assert.equal(d.offset[1], 0, k);
+    assert.ok(200 * 0.15 + 4 + d.size[1] <= 200 * 0.55, `${k} reaches below 55% of a 200 px screen`);
+  }
+});
+
+test("only basic JSON UI constructs: no stack_panel, no flip_book uv, no dynamic image with children", () => {
+  for (const { path, def } of CONTROLS) {
+    assert.notEqual(def.type, "stack_panel", `${path}: stack_panel`);
+    assert.ok(!("uv" in def) && !("uv_size" in def), `${path}: uv animation`);
+    if (def.texture === "#texture") assert.ok(!(def.controls || []).length, `${path}: dynamic #texture image with children`);
+  }
+  for (const [k, a] of Object.entries(NSJ)) if (a && a.anim_type) assert.ok(["alpha", "offset"].includes(a.anim_type), `${k}: ${a.anim_type}`);
+});
+
+test("no numeric-looking literal in any binding expression (number/string comparisons)", () => {
+  const all = [...CONTROLS.map((c) => [c.path, c.def]), ["hud.hud_title_text", HUDJ.hud_title_text], ["hud.hud_player_renderer", HUDJ.hud_player_renderer]];
+  let n = 0;
+  for (const [path, def] of all) {
+    for (const b of (def.bindings || []).filter((x) => x.binding_type === "view")) {
+      for (const m of b.source_property_name.matchAll(/'([^']*)'/g)) {
+        assert.ok(!looksNumeric(m[1]), `${path}: literal '${m[1]}' looks numeric`);
+        n++;
+      }
+      assert.ok(!/(^|[\s(])\d/.test(b.source_property_name.replace(/'[^']*'/g, "''")), `${path}: bare number in ${b.source_property_name}`);
+    }
+  }
+  assert.ok(n > 100);
+});
+
+test("every zero-padded frame texture has its leading-zero-free twin (identical bytes)", () => {
+  const dir = join(RP, "textures", "sym", "hud");
+  const files = new Set(readdirSync(dir));
+  let twins = 0;
+  for (const fn of files) {
+    const m = /^(.*_)(0\d+)\.png$/.exec(fn);
+    if (!m) continue;
+    const twin = `${m[1]}${Number(m[2])}.png`;
+    assert.ok(files.has(twin), `${fn} has no twin ${twin}`);
+    assert.ok(readFileSync(join(dir, fn)).equals(readFileSync(join(dir, twin))), `${twin} differs from ${fn}`);
+    twins++;
+  }
+  // energy 00..09, integrity 00..09, thrust 00..09, hp_<0|h|n|p|j>_00..09
+  assert.equal(twins, 10 * 8);
+  for (const p of ["energy_0", "energy_9", "integrity_0", "thrust_5", "hp_h_0", "hp_j_9", "hp_0_0"]) assert.ok(texExists(`textures/sym/hud/${p}`), p);
 });
 
 test("static references: textures, animations, renderer", () => {
@@ -321,7 +440,7 @@ test("static references: textures, animations, renderer", () => {
   for (const r of refs) assert.ok(anims.has(r), `unknown animation @${NS}.${r}`);
   for (const [k, a] of Object.entries(NSJ)) {
     if (!a || !a.anim_type) continue;
-    assert.ok(["alpha", "offset", "flip_book"].includes(a.anim_type), `${k}: ${a.anim_type}`);
+    assert.ok(["alpha", "offset"].includes(a.anim_type), `${k}: ${a.anim_type}`);
   }
   let customs = 0;
   for (const { path, def } of CONTROLS) {
@@ -330,17 +449,6 @@ test("static references: textures, animations, renderer", () => {
     if (def.type === "custom") {
       customs++;
       assert.ok(["live_player_renderer", "hud_player_renderer"].includes(def.renderer), def.renderer);
-    }
-    if (def.type === "image" && def.uv) {
-      const a = NSJ[def.uv.slice(NS.length + 2)];
-      assert.equal(a.anim_type, "flip_book");
-      const tex = def.texture === "#texture" ? def.property_bag["#texture"] : def.texture;
-      const img = readFileSync(join(RP, `${tex}.png`));
-      const w = img.readUInt32BE(16);
-      const h = img.readUInt32BE(20);
-      assert.equal(h, def.uv_size[1], `${path}: flip-book strip height`);
-      assert.equal(w, def.uv_size[0] * a.frame_count, `${path}: flip-book strip width`);
-      assert.equal(a.frame_step, def.uv_size[0]);
     }
   }
   assert.equal(customs, 1, "exactly one 3D armor view");

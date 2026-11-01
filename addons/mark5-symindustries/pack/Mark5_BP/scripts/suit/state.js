@@ -59,12 +59,13 @@ import { TUNING } from "./constants.js";
  * @property {boolean} dirty          energy changed since the last save
  * @property {number} lastPersist
  * @property {number} alarmLevel
- * @property {{reactor:number, arms:number, legs:number, eyes:number, hud:number, lock:number, flight:number, total:number}} drain
+ * @property {{reactor:number, arms:number, legs:number, eyes:number, hud:number, lock:number, flight:number, nv:number, total:number}} drain
  * @property {number} rate            net energy per second (regen - drain)
  * @property {boolean} hudEnabled
  * @property {boolean} busy
  * @property {any} worn               getWornSuit() result of this tick
  * @property {boolean} wasWorn
+ * @property {boolean} caseHeld   the Maleta Mark V is in the main hand (SPEC 13 readout)
  * @property {boolean} hudActive
  * @property {{from:string, to:string, at:number, kind:string}|undefined} transition
  * @property {boolean} slowApplied
@@ -75,7 +76,7 @@ import { TUNING } from "./constants.js";
  * @property {LookInfo|undefined} lookShown   target panel contents (lingers LOOK_KEEP ticks)
  * @property {number} lookUntil
  * @property {{pct:number, frame:number, state:"n"|"w"|"c"}} integrity  worn suit durability
- * @property {{pct:number, critical:boolean}|undefined} integWatch      damage alert watcher
+ * @property {{pct:number, critical:boolean, pendingCritical?:boolean}|undefined} integWatch  damage alert watcher
  * @property {boolean} menuOpen
  * @property {string|undefined} lastTargetSoundId
  * @property {number} lastTargetSoundTick
@@ -87,6 +88,18 @@ import { TUNING } from "./constants.js";
  * @property {HudRuntime} hud
  * @property {{index:number, next:number}|undefined} tips
  * @property {OneShotCost|undefined} oneShot   last one-shot energy cost (visor servos, SPEC 10)
+ * @property {NightVision} nv               auto night vision (SPEC 12.1)
+ * @property {boolean} visualLatch    creative: do not start the visual flight again until vanilla flight ends
+ * @property {number} suitUpRefusedAt tick of the last "not enough energy to suit up" message
+ */
+
+/**
+ * @typedef {Object} NightVision
+ * @property {boolean} loaded   preference read from PROP.NV
+ * @property {boolean} auto     feature enabled (menu, default AUTO)
+ * @property {boolean} on       our night vision is on (drains NV_DRAIN)
+ * @property {boolean} applied  WE added the night_vision effect (only then do we remove it)
+ * @property {number} low       consecutive dark samples
  */
 
 /**
@@ -113,12 +126,13 @@ export function newState(id) {
     dirty: false,
     lastPersist: -1000,
     alarmLevel: 0,
-    drain: { reactor: 0, arms: 0, legs: 0, eyes: 0, hud: 0, lock: 0, flight: 0, total: 0 },
+    drain: { reactor: 0, arms: 0, legs: 0, eyes: 0, hud: 0, lock: 0, flight: 0, nv: 0, total: 0 },
     rate: TUNING.REGEN,
     hudEnabled: true,
     busy: false,
     worn: undefined,
     wasWorn: false,
+    caseHeld: false,
     hudActive: false,
     transition: undefined,
     slowApplied: false,
@@ -153,6 +167,9 @@ export function newState(id) {
     },
     tips: undefined,
     oneShot: undefined,
+    nv: { loaded: false, auto: true, on: false, applied: false, low: 0 },
+    visualLatch: false,
+    suitUpRefusedAt: -1000,
   };
 }
 

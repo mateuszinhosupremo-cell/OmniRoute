@@ -52,7 +52,7 @@
         "facing_camera_mode": "lookat_xyz",
         "uv": {
           "texture_width": 256,
-          "texture_height": 384,
+          "texture_height": 576,
           "uv": [
             0,
             192

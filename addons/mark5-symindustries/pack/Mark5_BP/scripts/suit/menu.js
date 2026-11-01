@@ -19,6 +19,7 @@ const RETRY_TICKS = 5;
  * @property {(player: import("@minecraft/server").Player) => void} scan
  * @property {(player: import("@minecraft/server").Player, armed: boolean) => void} setLock
  * @property {(player: import("@minecraft/server").Player) => void} suitOff
+ * @property {(player: import("@minecraft/server").Player, auto: boolean) => void} setNightVision
  */
 
 /**
@@ -70,6 +71,12 @@ function powerLine(st) {
 }
 
 /** @param {import("./state.js").SuitState} st */
+function nvLine(st) {
+  if (!st.nv.auto) return "§cDESLIGADA";
+  return st.nv.on ? "§bAUTO §7(ativa)" : "§bAUTO";
+}
+
+/** @param {import("./state.js").SuitState} st */
 function bodyText(st) {
   const pct = energyPct(st.energy);
   const color = pct <= 10 ? "§c" : pct < 25 ? "§6" : "§b";
@@ -82,6 +89,7 @@ function bodyText(st) {
     `§7Voo: ${flight}`,
     `§7Mira teleguiada: ${lock}`,
     `§7Integridade da armadura: §f${st.integrity.pct}%`,
+    `§7Visão noturna: ${nvLine(st)}`,
   ].join("\n");
 }
 
@@ -101,6 +109,7 @@ export function openMenu(player, actions) {
   const buttons = [
     { id: "visor", label: visorOpen ? "Fechar visor" : "Abrir visor", icon: ICON.VISOR },
     { id: "hud", label: (st.hudEnabled ? "HUD: §aLIGADO" : "HUD: §cDESLIGADO") + tag, icon: ICON.HUD },
+    { id: "nv", label: (st.nv.auto ? "Visão noturna: §bAUTO" : "Visão noturna: §cDESLIGADA") + tag, icon: ICON.VISOR },
     { id: "flight", label: (st.flight ? "Pousar" : "Decolar") + tag, icon: ICON.FLIGHT },
     { id: "scan", label: "Scanner de área" + tag, icon: ICON.SCAN },
     { id: "lock", label: (st.lock.armed ? "Mira teleguiada: §cARMADA" : "Mira teleguiada: §7DESARMADA") + tag, icon: ICON.LOCK },
@@ -129,6 +138,9 @@ export function openMenu(player, actions) {
         case "hud":
           actions.setHud(player, !cur.hudEnabled);
           if (!powered) actionbar(player, "§7Preferência salva §8— §csem energia§7, o HUD liga no reinício");
+          break;
+        case "nv":
+          actions.setNightVision(player, !cur.nv.auto);
           break;
         case "flight":
           if (!powered && !cur.flight) actionbar(player, "§cSem energia §7— propulsores offline");
@@ -169,6 +181,8 @@ export function oneShotLines(st, tick) {
   const lines = [
     `§7Custos pontuais: §fservos do visor §c-${T.VISOR_COST} §8(${costPct(T.VISOR_COST)}% por abertura/fechamento)`,
     `§7Decolagem §c-${T.TAKEOFF_COST} §7· Scanner §c-${T.SCAN_COST} §7· Trava da mira §c-${T.LOCK_ACQUIRE_COST}`,
+    `§7Montagem da armadura §c-${T.SUITUP_COST} §8(${costPct(T.SUITUP_COST)}%, mínimo para vestir)`,
+    `§7Desmontagem §c-${T.SUITOFF_COST} §8(${costPct(T.SUITOFF_COST)}%; manual e grátis sem energia)`,
   ];
   const o = st.oneShot;
   if (o) {
@@ -205,6 +219,7 @@ export function openDiagnostics(player, actions) {
       line("HUD", d.hud),
       line("Voo", d.flight),
       line("Mira teleguiada", d.lock),
+      line("Visão noturna", d.nv ?? 0),
       "",
       `§fSaldo ${st.rate >= 0 ? "§a" : "§c"}${formatRate(st.rate)}`,
       eta,

@@ -56,7 +56,11 @@ const lit = (s) => {
   if (s.includes("'")) throw new Error("quote in literal");
   return `'${s}'`;
 };
-const is = (name, ch) => eq(fld(name), lit(ch));
+/** Field equals a one-char value. JSON UI coerces numeric-looking strings (SPEC 11 item 1): a field
+ *  holding '0' may arrive as the NUMBER 0, and a number/string comparison is not reliable. For
+ *  digit values both sides are therefore prefixed with '_' ('_' + 0 and '_' + '0' are both the
+ *  non-numeric string '_0'), so the comparison is string = string under both engine behaviours. */
+const is = (name, ch) => (/^[0-9]+$/.test(ch) ? eq(cat(lit("_"), fld(name)), lit(`_${ch}`)) : eq(fld(name), lit(ch)));
 const isnt = (name, ch) => not(is(name, ch));
 const modeIs = (m) => eq(trunc(F.mode.end), lit(H + m));
 const headerOk = eq(trunc(H.length), lit(H));
@@ -90,18 +94,16 @@ function panel(props, controls = [], visible) {
   return withBindings(def, visible ? [view(visible, "#visible")] : []);
 }
 
-function stack(props, controls) {
-  return { type: "stack_panel", ...props, controls };
-}
-
 function image(texture, props = {}, controls = [], visible) {
   const def = { type: "image", texture: HUD_TEX + texture, bilinear: true, ...props };
   if (controls.length) def.controls = controls;
   return withBindings(def, visible ? [view(visible, "#visible")] : []);
 }
 
-/** Image whose texture path is computed from the title. */
+/** Image whose texture path is computed from the title. Never has children (SPEC 11 item 3: a
+ *  dynamic-#texture image with children did not render in game); put siblings next to it. */
 function dynImage(texExpr, fallback, props = {}, controls = [], visible) {
+  if (controls.length) throw new Error("dynImage must not have children");
   const def = {
     type: "image",
     texture: "#texture",
@@ -169,9 +171,8 @@ const ANIMS = {
   anim_armor_scan: { anim_type: "offset", easing: "linear", duration: 2.6, from: [0, 2], to: [0, 62], next: ref("anim_armor_scan") },
   anim_scan_sweep: { anim_type: "offset", easing: "linear", duration: 1.1, from: [2, 12], to: [2, 58], next: ref("anim_scan_sweep") },
   anim_boot_scan: { anim_type: "offset", easing: "in_out_sine", duration: 1.8, from: [2, 3], to: [2, 95], next: ref("anim_boot_scan") },
-  anim_reticle_ring: { anim_type: "flip_book", initial_uv: [0, 0], frame_count: 9, frame_step: 96, fps: 10, easing: "linear" },
-  anim_radar: { anim_type: "flip_book", initial_uv: [0, 0], frame_count: 12, frame_step: 48, fps: 14, easing: "linear" },
-  anim_boot_load: { anim_type: "flip_book", initial_uv: [0, 0], frame_count: 8, frame_step: 128, fps: 12, easing: "linear" },
+  anim_ring_out: { anim_type: "alpha", easing: "in_out_sine", duration: 1.4, from: 0.55, to: 0.25, next: ref("anim_ring_in") },
+  anim_ring_in: { anim_type: "alpha", easing: "in_out_sine", duration: 1.4, from: 0.25, to: 0.55, next: ref("anim_ring_out") },
 };
 
 // ----------------------------------------------------------------------- layout --
@@ -187,12 +188,20 @@ const ANIMS = {
 // Panels therefore start just below the top polyline ("15% + 4px" clears it for every panel x
 // range on 16:9..20:9 screens), the compass lives in a black tab that extends the top notch, the
 // alert banner sits below the deepest point of the top line, and the flight panel stays above the
-// raised centre of the bottom line (and above the vanilla hotbar / hearts).
+// raised centre of the bottom line, just above the vanilla hearts / hunger / armour rows (hearts
+// H-39..H-32, armour H-49..H-42). Its bottom edge sits FLIGHT_PANEL_BOTTOM px above the screen
+// bottom: low enough that on phones (GUI height ~200-216) its top edge (H-86) stays below the
+// reticle (H/2 + ~14). It overlaps vanilla's actionbar box (H-76..H-61): the script does not use the
+// actionbar during flight (SPEC 11 follow-up), so nothing prints over flight_text.
 // Phone-safe: nothing interactive; the bottom-left (move pad) and bottom-right (jump / sneak) are
-// kept clear, the right column starts below the top-right ~100x36 touch buttons, and the screen
-// centre only has the reticle. Columns are stack panels so hidden panels collapse.
+// kept clear, the right column starts below the top-right ~100x36 touch buttons and stays in the
+// upper ~55 % of the screen, and the screen centre only has the reticle.
+// Only basic, vanilla-proven constructs (SPEC 11 item 3): plain panels with ABSOLUTE offsets (no
+// stack_panel), static images (no flip_book uv animation; alpha/offset animations only), and a
+// dynamic "#texture" image never has children.
 const BELOW_TOP_LINE = "15% + 4px";
 const BELOW_TOP_LINE_DEEPEST = "16.5% + 3px";
+export const FLIGHT_PANEL_BOTTOM = 55;
 
 function visorFrame() {
   const full = { size: ["100%", "100%"], keep_ratio: false, fill: true };
@@ -209,14 +218,10 @@ function dangerEdge() {
   }, [], and(modeIs("1"), or(is("threat", "1"), is("energy_state", "c"))));
 }
 
-/** integrity_pct ("000".."100") without leading zeros, using only prefix-safe string removal:
- *  step(x) = (('_' + x) - '_0') - '_' removes ONE leading zero (works whether the engine's string
- *  subtraction removes the first or every occurrence, because '_0' can only occur at the start). */
-const stripLeadingZeros = (e) => {
-  const step = (x) => `(((${lit("_")} + ${x}) - ${lit("_0")}) - ${lit("_")})`;
-  return step(step(e));
-};
-export const INTEGRITY_TEXT = cat(stripLeadingZeros(fld("integrity_pct")), lit("%"));
+/** Resistance readout. The script sends integrity_pct RIGHT-ALIGNED WITH SPACES ("100", " 72",
+ *  "  5"), so (field + '%') is right whether the engine keeps the field as a string (" 72%") or
+ *  coerces it to a number ("72%") — SPEC 11 item 2. */
+export const INTEGRITY_TEXT = cat(fld("integrity_pct"), lit("%"));
 
 function suitPanel() {
   const ledCell = (name, field, label, x, y) => [
@@ -272,8 +277,8 @@ function suitPanel() {
   ]);
 }
 
-function energyPanel() {
-  return image("panel_energy", { size: [152, 38], ...TL, layer: 1 }, [
+function energyPanel(y) {
+  return image("panel_energy", { size: [152, 38], ...at(0, y), layer: 1 }, [
     C("ring", dynImage(texOf("energy_ring_", fld("energy_state")), "energy_ring_n", { size: [36, 36], ...at(2, 1), layer: 2 })),
     C("gauge", dynImage(texOf("energy_", fld("energy_frame")), "energy_20", { size: [36, 36], ...at(2, 1), layer: 3 })),
     C("pulse", image("energy_pulse", { size: [46, 46], ...at(-3, -4), layer: 4, anims: [ref("anim_blink_out")] }, [], is("energy_state", "c"))),
@@ -282,13 +287,54 @@ function energyPanel() {
   ]);
 }
 
-/** Systems list: shares the right column with the context panels and is shown only while there
- *  is no scan / target to show (keeps the left column short: clear of the phone move pad). */
-function systemsPanel(W) {
-  return image("panel_systems", { size: [W, 50], layer: 1 }, [
+// Right column (SPEC 11 item 3): plain panels at ABSOLUTE offsets inside a fixed-size panel, each
+// with its background image as a SIBLING of its content (no stack_panel, no image with children).
+//   no scan, no target  -> systems panel at the top
+//   target, no scan     -> target panel at the top
+//   scan                -> scan panel at the top (+ the "low" target copy right below it)
+export const RIGHT_W = 150;
+const SCAN_H = 66;
+const TARGET_H = 54;
+const SYSTEMS_H = 50;
+const RIGHT_GAP = 2;
+const TARGET_LOW_Y = SCAN_H + RIGHT_GAP;
+export const RIGHT_H = TARGET_LOW_Y + TARGET_H;
+
+/** Systems list: shown only while there is no scan / target to show. */
+function systemsPanel() {
+  const W = RIGHT_W;
+  return panel({ size: [W, SYSTEMS_H], ...at(0, 0), layer: 1 }, [
+    C("bg", image("panel_systems", { size: [W, SYSTEMS_H], ...at(0, 0), layer: 1 })),
     C("caption", staticLabel("SISTEMAS", { ...at(6, 1.5), font_scale_factor: 0.5, color: TXT.dim, layer: 2 })),
     C("systems_text", fieldLabel("systems_text", { ...at(5, 10), size: [W - 8, "default"], font_scale_factor: 0.6, color: TXT.ice, layer: 2 })),
   ], and(is("scan", "0"), is("target_class", "0")));
+}
+
+function scanPanel() {
+  const W = RIGHT_W;
+  return panel({ size: [W, SCAN_H], ...at(0, 0), layer: 1 }, [
+    C("bg", image("panel_scan", { size: [W, SCAN_H], ...at(0, 0), layer: 1 })),
+    C("radar_idle", image("radar_idle", { size: [11, 11], ...at(4, 0.5), layer: 2 }, [], is("scan", "1"))),
+    C("radar_sweep", image("radar_sweep", { size: [11, 11], ...at(4, 0.5), layer: 2, anims: [ref("anim_blink_out")] }, [], is("scan", "2"))),
+    C("caption", staticLabel("SCANNER DE ÁREA", { ...at(18, 3), font_scale_factor: 0.55, color: TXT.cyan, layer: 2 })),
+    C("scan_text", fieldLabel("scan_text", { ...at(5, 14), size: [141, "default"], font_scale_factor: 0.6, color: TXT.ice, layer: 2 })),
+    C("sweep", image("scan_sweep", { size: [146, 6], ...at(2, 12), alpha: 0.9, layer: 3, anims: [ref("anim_scan_sweep")] }, [], is("scan", "2"))),
+  ], isnt("scan", "0"));
+}
+
+export const TARGET_CLASSES = ["h", "n", "p", "j"];
+
+/** Target analysis panel at height y: one STATIC frame image per class toggled by #visible, the
+ *  dynamic hp bar is a sibling. Two copies exist (top / below the scan panel) with mutually
+ *  exclusive visibility, because offsets cannot be bound. */
+function targetPanel(y, visible) {
+  const W = RIGHT_W;
+  return panel({ size: [W, TARGET_H], ...at(0, y), layer: 1 }, [
+    ...TARGET_CLASSES.map((c) => C(`frame_${c}`, image(`target_frame_${c}`, { size: [W, TARGET_H], ...at(0, 0), layer: 1 }, [], is("target_class", c)))),
+    C("caption", staticLabel("ANÁLISE DE ALVO", { ...at(7, 3), font_scale_factor: 0.55, color: TXT.white, layer: 2 })),
+    C("target_text", fieldLabel("target_text", { ...at(6, 14), size: [138, "default"], font_scale_factor: 0.65, color: TXT.white, layer: 2 })),
+    C("hp_bar", dynImage(texOf("hp_", cat(cat(fld("target_class"), lit("_")), fld("target_hp_frame"))), "hp_0_00", { size: [138, 5], ...at(6, 45), layer: 2 })),
+  ], visible);
 }
 
 const COMPASS_W = 150;
@@ -317,37 +363,29 @@ function topCenter() {
 
 function centerCluster() {
   return panel({ size: ["100%", "100%"], layer: 3 }, [
-    C("reticle_ring", image("reticle_ring", { size: [60, 60], uv_size: [96, 96], uv: ref("anim_reticle_ring"), alpha: 0.5, layer: 1 })),
+    C("reticle_ring", image("reticle_ring", { size: [60, 60], layer: 1, anims: [ref("anim_ring_out")] })),
     C("reticle", dynImage(texOf("reticle_", fld("reticle")), "reticle_i", { size: [32, 32], layer: 3 })),
     C("lock_ring", dynImage(texOf("lock_", fld("lock_frame")), "lock_0", { size: [50, 50], layer: 4 }, [], isnt("lock_frame", "0"))),
-    C("lock_tag", image("lock_tag", { size: [86, 10], anchor_from: "center", anchor_to: "center", offset: [0, 34], layer: 2 }, [
+    // above the reticle: below it the tag would collide with the low flight panel on phones
+    C("lock_tag", image("lock_tag", { size: [86, 10], anchor_from: "center", anchor_to: "center", offset: [0, -36], layer: 2 }, [
       C("lock_tag_label", staticLabel("MIRA TELEGUIADA", { anchor_from: "center", anchor_to: "center", offset: [0, 0.5], text_alignment: "center", font_scale_factor: 0.55, color: TXT.amber, layer: 1 })),
     ], is("lock_mode", "1"))),
   ]);
 }
 
 function rightColumn() {
-  const W = 150;
-  return stack({ orientation: "vertical", size: [W, 200], anchor_from: "top_right", anchor_to: "top_right", offset: [-4, BELOW_TOP_LINE], layer: 2 }, [
-    C("scan_panel", image("panel_scan", { size: [W, 66] }, [
-      C("radar_idle", image("radar_idle", { size: [11, 11], ...at(4, 0.5), layer: 2 }, [], is("scan", "1"))),
-      C("radar_sweep", image("radar_sweep", { size: [11, 11], ...at(4, 0.5), uv_size: [48, 48], uv: ref("anim_radar"), layer: 2 }, [], is("scan", "2"))),
-      C("caption", staticLabel("SCANNER DE ÁREA", { ...at(18, 3), font_scale_factor: 0.55, color: TXT.cyan, layer: 2 })),
-      C("scan_text", fieldLabel("scan_text", { ...at(5, 14), size: [141, "default"], font_scale_factor: 0.6, color: TXT.ice, layer: 2 })),
-      C("sweep", image("scan_sweep", { size: [146, 6], ...at(2, 12), alpha: 0.9, layer: 3, anims: [ref("anim_scan_sweep")] }, [], is("scan", "2"))),
-    ], isnt("scan", "0"))),
-    C("gap", panel({ size: [W, 3] }, [], and(isnt("scan", "0"), isnt("target_class", "0")))),
-    C("target_panel", dynImage(texOf("target_frame_", fld("target_class")), "target_frame_0", { size: [W, 54] }, [
-      C("caption", staticLabel("ANÁLISE DE ALVO", { ...at(7, 3), font_scale_factor: 0.55, color: TXT.white, layer: 2 })),
-      C("target_text", fieldLabel("target_text", { ...at(6, 14), size: [138, "default"], font_scale_factor: 0.65, color: TXT.white, layer: 2 })),
-      C("hp_bar", dynImage(texOf("hp_", cat(cat(fld("target_class"), lit("_")), fld("target_hp_frame"))), "hp_0_00", { size: [138, 5], ...at(6, 45), layer: 2 })),
-    ], isnt("target_class", "0"))),
-    C("systems_panel", systemsPanel(W)),
+  const noScan = is("scan", "0");
+  const hasTarget = isnt("target_class", "0");
+  return panel({ size: [RIGHT_W, RIGHT_H], anchor_from: "top_right", anchor_to: "top_right", offset: [-4, BELOW_TOP_LINE], layer: 2 }, [
+    C("systems_panel", systemsPanel()),
+    C("scan_panel", scanPanel()),
+    C("target_panel", targetPanel(0, and(hasTarget, noScan))),
+    C("target_panel_low", targetPanel(TARGET_LOW_Y, and(hasTarget, not(noScan)))),
   ]);
 }
 
 function flightPanel() {
-  return image("panel_flight", { size: [166, 31], anchor_from: "bottom_middle", anchor_to: "bottom_middle", offset: [0, -56], layer: 2 }, [
+  return image("panel_flight", { size: [166, 31], anchor_from: "bottom_middle", anchor_to: "bottom_middle", offset: [0, -FLIGHT_PANEL_BOTTOM], layer: 2 }, [
     C("badge", dynImage(texOf("flight_", fld("flight")), "flight_0", { size: [24, 24], ...at(4, 3.5), layer: 2 })),
     C("caption", staticLabel("VOO • PROPULSORES", { ...at(32, 2.5), font_scale_factor: 0.5, color: TXT.dim, layer: 2 })),
     C("flight_text", fieldLabel("flight_text", { ...at(32, 9), size: [118, "default"], font_scale_factor: 0.6, color: TXT.ice, layer: 2 })),
@@ -357,10 +395,9 @@ function flightPanel() {
 
 function mainHud() {
   return panel({ size: ["100%", "100%"], layer: 5 }, [
-    C("left_column", stack({ orientation: "vertical", size: [152, 126], ...at(4, BELOW_TOP_LINE), layer: 2 }, [
+    C("left_column", panel({ size: [152, 126], ...at(4, BELOW_TOP_LINE), layer: 2 }, [
       C("suit_panel", suitPanel()),
-      C("gap_a", panel({ size: [152, 2] })),
-      C("energy_panel", energyPanel()),
+      C("energy_panel", energyPanel(88)),
     ])),
     C("top_center", topCenter()),
     // coordinates: small, in the top-left band of the visor (above its top-left polyline)
@@ -373,13 +410,17 @@ function mainHud() {
 
 function bootOverlay() {
   const m = fld("mode");
+  const frame = (mode) => image(`boot_frame_${mode}`, { size: [230, 106], ...at(0, 0), layer: 1 }, [], modeIs(mode));
   return panel({ size: ["100%", "100%"], layer: 20 }, [
-    C("boot_frame", dynImage(texOf("boot_frame_", m), "boot_frame_2", { size: [230, 106], anchor_from: "center", anchor_to: "center", offset: [0, -14], layer: 1 }, [
+    // frame images are static per mode and SIBLINGS of the content (SPEC 11 item 3)
+    C("boot_frame", panel({ size: [230, 106], anchor_from: "center", anchor_to: "center", offset: [0, -14], layer: 1 }, [
+      C("frame_boot", frame("2")),
+      C("frame_fail", frame("3")),
       C("header_boot", staticLabel("SYM INDUSTRIES  //  MARK V  //  SYM OS 2.0", { ...at(9, 3.5), font_scale_factor: 0.6, color: TXT.cyan, layer: 2 }, modeIs("2"))),
       C("header_fail", staticLabel("§lALERTA  //  FALHA CRÍTICA DE ENERGIA", { ...at(9, 3.5), font_scale_factor: 0.6, color: TXT.red, layer: 2 }, modeIs("3"))),
       C("ring", dynImage(texOf("boot_ring_", m), "boot_ring_2", { size: [26, 26], anchor_from: "top_right", anchor_to: "top_right", offset: [-7, 19], layer: 2 })),
       C("boot_text", fieldLabel("boot_text", { ...at(9, 19), size: [180, "default"], font_scale_factor: 0.75, color: TXT.ice, layer: 2 })),
-      C("loader", dynImage(texOf("boot_load_", m), "boot_load_2", { size: [64, 5], anchor_from: "bottom_left", anchor_to: "bottom_left", offset: [9, -7], uv_size: [128, 10], uv: ref("anim_boot_load"), layer: 2 })),
+      C("loader", dynImage(texOf("boot_load_", m), "boot_load_2", { size: [64, 5], anchor_from: "bottom_left", anchor_to: "bottom_left", offset: [9, -7], layer: 2, anims: [ref("anim_pulse_out")] })),
       C("scanline", dynImage(texOf("boot_scan_", m), "boot_scan_2", { size: [226, 8], ...at(2, 3), alpha: 0.8, layer: 5, anims: [ref("anim_boot_scan")] })),
     ])),
   ], or(modeIs("2"), modeIs("3")));

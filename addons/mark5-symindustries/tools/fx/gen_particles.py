@@ -200,151 +200,192 @@ reg("smoke", effect("sym:mk5_smoke", "particles_blend", {
     ]},
 }))
 
-# ============================================================ sonic boom
+# ============================================================ sonic boom (SPEC 12.4 — sharp vapor cone)
+# Three hard-edged rings staggered along -dir with shrinking radius read as a Mach cone.
+BK = "variable.particle_random_1 * 1.15"
+BOOM_DIR = ["variable.dir.x + 0.0001", "variable.dir.y", "variable.dir.z + 0.0001"]
+BOOM_SIZE = f"(0.2 + 3.4 * {ease_out(2.6)}) * (1.0 - 0.5 * variable.particle_random_1)"
 reg("boom", effect("sym:mk5_boom", "particles_blend", {
     "minecraft:emitter_initialization": {"creation_expression": DIR_DEFAULT.format(x="0.0", y="0.0", z="1.0")},
-    "minecraft:emitter_rate_steady": {"spawn_rate": 16, "max_particles": 3},
-    "minecraft:emitter_lifetime_once": {"active_time": 0.2},
+    "minecraft:emitter_rate_instant": {"num_particles": 3},
+    "minecraft:emitter_lifetime_once": {"active_time": 0.05},
     "minecraft:emitter_lifetime_events": {"creation_event": "vapor"},
-    "minecraft:emitter_shape_point": {},
+    "minecraft:emitter_shape_custom": {
+        "offset": [f"0.0 - variable.dir.x * {BK}", f"0.0 - variable.dir.y * {BK}", f"0.0 - variable.dir.z * {BK}"],
+        "direction": BOOM_DIR,
+    },
     "minecraft:particle_initialization": {"per_render_expression": LT},
-    "minecraft:particle_lifetime_expression": {"max_lifetime": "0.45 + variable.particle_random_1 * 0.05"},
+    "minecraft:particle_lifetime_expression": {"max_lifetime": "0.38 + variable.particle_random_2 * 0.07"},
     "minecraft:particle_initial_speed": 0,
     "minecraft:particle_appearance_billboard": billboard(
-        f"6.8 * {ease_out(2.4)} + 0.2", f"6.8 * {ease_out(2.4)} + 0.2", uv("boom"),
-        mode="direction_z",
-        direction={"mode": "custom",
-                   "custom_direction": ["variable.dir.x + 0.0001", "variable.dir.y", "variable.dir.z + 0.0001"]}),
-    "minecraft:particle_appearance_tinting": {"color": [0.92, 0.96, 1.0, "0.85 * math.pow(1.0 - variable.lt, 1.6)"]},
+        BOOM_SIZE, BOOM_SIZE, uv("ring_crisp"), mode="direction_z",
+        direction={"mode": "custom", "custom_direction": BOOM_DIR}),
+    "minecraft:particle_appearance_tinting": {"color": [
+        0.93, 0.97, 1.0,
+        "0.95 * math.pow(1.0 - variable.lt, 1.5) * (1.0 - 0.3 * variable.particle_random_1)"]},
 }, events={"vapor": child("sym:mk5_fx_vapor")}))
 
+# clean vapor: a thin expanding shell of hard-edged white puffs (no drifting smoke)
 reg("fx_vapor", effect("sym:mk5_fx_vapor", "particles_blend", {
-    "minecraft:emitter_rate_instant": {"num_particles": 14},
+    "minecraft:emitter_rate_instant": {"num_particles": 8},
     "minecraft:emitter_lifetime_once": {"active_time": 0.05},
-    "minecraft:emitter_shape_sphere": {"radius": 0.4, "direction": "outwards"},
+    "minecraft:emitter_shape_sphere": {"radius": 0.35, "direction": "outwards"},
     "minecraft:particle_initialization": {"per_render_expression": LT},
-    "minecraft:particle_lifetime_expression": {"max_lifetime": "math.random(0.5, 0.8)"},
-    "minecraft:particle_initial_speed": "math.random(8.0, 14.0)",
-    "minecraft:particle_initial_spin": {"rotation": "math.random(0, 360)", "rotation_rate": "math.random(-90, 90)"},
-    "minecraft:particle_motion_dynamic": {"linear_drag_coefficient": 6},
+    "minecraft:particle_lifetime_expression": {"max_lifetime": "0.24 + variable.particle_random_1 * 0.08"},
+    "minecraft:particle_initial_speed": "9.0 + variable.particle_random_2 * 4.0",
+    "minecraft:particle_motion_dynamic": {"linear_drag_coefficient": 7.0},
     "minecraft:particle_appearance_billboard": billboard(
-        "0.4 + 0.8 * math.sqrt(variable.lt)", "0.4 + 0.8 * math.sqrt(variable.lt)", uv_random("smoke", 4)),
-    "minecraft:particle_appearance_lighting": {},
-    "minecraft:particle_appearance_tinting": {"color": [0.95, 0.97, 1.0, "0.5 * (1.0 - variable.lt)"]},
+        "0.22 + 0.34 * variable.lt", "0.22 + 0.34 * variable.lt", uv("puff")),
+    "minecraft:particle_appearance_tinting": {"color": [
+        0.95, 0.98, 1.0, "0.7 * math.pow(1.0 - variable.lt, 1.3)"]},
 }))
 
-# ============================================================ takeoff / landing
+# ============================================================ takeoff / landing (SPEC 12.4 — clean)
+# takeoff = bright burst + one crisp shockwave ring + a low dust wash + a few sharp sparks.
+TO_SIZE = f"0.35 + 3.1 * {ease_out(2.2)}"
 reg("takeoff", effect("sym:mk5_takeoff", "particles_add", {
-    "minecraft:emitter_rate_steady": {"spawn_rate": 20, "max_particles": 2},
-    "minecraft:emitter_lifetime_once": {"active_time": 0.1},
-    "minecraft:emitter_lifetime_events": {"creation_event": ["dust_ring", "dust_puffs", "sparks"]},
-    "minecraft:emitter_shape_point": {"offset": [0, 0.03, 0]},
+    "minecraft:emitter_rate_instant": {"num_particles": 1},
+    "minecraft:emitter_lifetime_once": {"active_time": 0.05},
+    "minecraft:emitter_lifetime_events": {"creation_event": ["flash", "dust_ring", "sparks"]},
+    "minecraft:emitter_shape_point": {"offset": [0, 0.05, 0]},
     "minecraft:particle_initialization": {"per_render_expression": LT},
-    "minecraft:particle_lifetime_expression": {"max_lifetime": 0.5},
+    "minecraft:particle_lifetime_expression": {"max_lifetime": 0.36},
     "minecraft:particle_initial_speed": 0,
-    "minecraft:particle_initial_spin": {"rotation": "math.random(0, 360)"},
     "minecraft:particle_appearance_billboard": billboard(
-        f"0.3 + 2.6 * {ease_out(2.5)}", f"0.3 + 2.6 * {ease_out(2.5)}", uv("ring_fire"), mode="emitter_transform_xz"),
+        TO_SIZE, TO_SIZE, uv("ring_crisp"), mode="emitter_transform_xz"),
     "minecraft:particle_appearance_tinting": {"color": [
-        1.0, "0.95 - 0.45 * variable.lt", "0.6 - 0.48 * variable.lt", "math.pow(1.0 - variable.lt, 1.3)"]},
-}, events={"dust_ring": child("sym:mk5_fx_dust_ring"), "dust_puffs": child("sym:mk5_fx_dust_puffs"),
+        1.0, "1.0 - 0.3 * variable.lt", "0.78 - 0.6 * variable.lt", "math.pow(1.0 - variable.lt, 1.1)"]},
+}, events={"flash": child("sym:mk5_fx_impact_flash"), "dust_ring": child("sym:mk5_fx_dust_ring"),
            "sparks": child("sym:mk5_fx_sparks_up")}))
 
+# landing = crisp dust shockwave + white impact burst + short debris + a few clean puffs.
+LD_SIZE = f"0.3 + 3.4 * {ease_out(2.8)}"
 reg("landing", effect("sym:mk5_landing", "particles_blend", {
     "minecraft:emitter_rate_instant": {"num_particles": 1},
     "minecraft:emitter_lifetime_once": {"active_time": 0.05},
-    "minecraft:emitter_lifetime_events": {"creation_event": ["flash", "dust_puffs", "debris"]},
+    "minecraft:emitter_lifetime_events": {"creation_event": ["flash", "debris", "puffs"]},
     "minecraft:emitter_shape_point": {"offset": [0, 0.06, 0]},
     "minecraft:particle_initialization": {"per_render_expression": LT},
-    "minecraft:particle_lifetime_expression": {"max_lifetime": 0.75},
+    "minecraft:particle_lifetime_expression": {"max_lifetime": 0.55},
     "minecraft:particle_initial_speed": 0,
-    "minecraft:particle_initial_spin": {"rotation": "math.random(0, 360)"},
     "minecraft:particle_appearance_billboard": billboard(
-        f"0.3 + 4.0 * {ease_out(3.0)}", f"0.3 + 4.0 * {ease_out(3.0)}", uv("ring_soft"), mode="emitter_transform_xz"),
+        LD_SIZE, LD_SIZE, uv("ring_dust"), mode="emitter_transform_xz"),
     "minecraft:particle_appearance_lighting": {},
-    "minecraft:particle_appearance_tinting": {"color": [0.64, 0.6, 0.54, "0.85 * math.pow(1.0 - variable.lt, 1.4)"]},
-}, events={"flash": child("sym:mk5_fx_impact_flash"), "dust_puffs": child("sym:mk5_fx_dust_puffs"),
-           "debris": child("sym:mk5_fx_debris")}))
+    "minecraft:particle_appearance_tinting": {"color": [
+        0.82, 0.78, 0.71, "0.9 * math.pow(1.0 - variable.lt, 1.4)"]},
+}, events={"flash": child("sym:mk5_fx_impact_flash"), "debris": child("sym:mk5_fx_debris"),
+           "puffs": child("sym:mk5_fx_dust_puffs")}))
 
+DR_SIZE = f"0.5 + 3.8 * {ease_out(2.6)}"
 reg("fx_dust_ring", effect("sym:mk5_fx_dust_ring", "particles_blend", {
     "minecraft:emitter_rate_instant": {"num_particles": 1},
     "minecraft:emitter_lifetime_once": {"active_time": 0.05},
-    "minecraft:emitter_shape_point": {"offset": [0, 0.08, 0]},
+    "minecraft:emitter_shape_point": {"offset": [0, 0.06, 0]},
     "minecraft:particle_initialization": {"per_render_expression": LT},
-    "minecraft:particle_lifetime_expression": {"max_lifetime": 0.9},
+    "minecraft:particle_lifetime_expression": {"max_lifetime": 0.6},
     "minecraft:particle_initial_speed": 0,
-    "minecraft:particle_initial_spin": {"rotation": "math.random(0, 360)"},
     "minecraft:particle_appearance_billboard": billboard(
-        f"0.3 + 3.9 * {ease_out(3.0)}", f"0.3 + 3.9 * {ease_out(3.0)}", uv("ring_soft"), mode="emitter_transform_xz"),
+        DR_SIZE, DR_SIZE, uv("ring_dust"), mode="emitter_transform_xz"),
     "minecraft:particle_appearance_lighting": {},
-    "minecraft:particle_appearance_tinting": {"color": [0.62, 0.58, 0.52, "0.75 * math.pow(1.0 - variable.lt, 1.5)"]},
+    "minecraft:particle_appearance_tinting": {"color": [
+        0.8, 0.76, 0.69, "0.6 * math.pow(1.0 - variable.lt, 1.5)"]},
 }))
 
 reg("fx_dust_puffs", effect("sym:mk5_fx_dust_puffs", "particles_blend", {
-    "minecraft:emitter_rate_instant": {"num_particles": 12},
+    "minecraft:emitter_rate_instant": {"num_particles": 6},
     "minecraft:emitter_lifetime_once": {"active_time": 0.05},
-    "minecraft:emitter_shape_disc": {"plane_normal": "y", "offset": [0, 0.15, 0], "radius": 0.5,
+    "minecraft:emitter_shape_disc": {"plane_normal": "y", "offset": [0, 0.12, 0], "radius": 0.55,
                                      "direction": "outwards"},
     "minecraft:particle_initialization": {"per_render_expression": LT},
-    "minecraft:particle_lifetime_expression": {"max_lifetime": "math.random(0.7, 1.2)"},
-    "minecraft:particle_initial_speed": "math.random(3.5, 6.0)",
-    "minecraft:particle_initial_spin": {"rotation": "math.random(0, 360)", "rotation_rate": "math.random(-60, 60)"},
-    "minecraft:particle_motion_dynamic": {"linear_acceleration": [0, 0.4, 0], "linear_drag_coefficient": 3.5},
+    "minecraft:particle_lifetime_expression": {"max_lifetime": "math.random(0.3, 0.5)"},
+    "minecraft:particle_initial_speed": "math.random(4.5, 7.0)",
+    "minecraft:particle_initial_spin": {"rotation": "math.random(0, 360)", "rotation_rate": "math.random(-25, 25)"},
+    "minecraft:particle_motion_dynamic": {"linear_drag_coefficient": 5.0},
     "minecraft:particle_appearance_billboard": billboard(
-        "(0.25 + 0.55 * variable.lt) * (0.8 + 0.4 * variable.particle_random_2)",
-        "(0.25 + 0.55 * variable.lt) * (0.8 + 0.4 * variable.particle_random_2)",
-        uv_random("dust", 4)),
+        "(0.2 + 0.34 * variable.lt) * (0.85 + 0.3 * variable.particle_random_2)",
+        "(0.2 + 0.34 * variable.lt) * (0.85 + 0.3 * variable.particle_random_2)", uv("puff")),
     "minecraft:particle_appearance_lighting": {},
-    "minecraft:particle_appearance_tinting": {"color": [0.6, 0.56, 0.5, "0.65 * (1.0 - variable.lt)"]},
+    "minecraft:particle_appearance_tinting": {"color": [
+        0.76, 0.72, 0.65, "0.55 * math.pow(1.0 - variable.lt, 1.2)"]},
 }))
 
 reg("fx_sparks_up", effect("sym:mk5_fx_sparks_up", "particles_add", {
-    "minecraft:emitter_rate_instant": {"num_particles": 16},
+    "minecraft:emitter_rate_instant": {"num_particles": 9},
     "minecraft:emitter_lifetime_once": {"active_time": 0.05},
-    "minecraft:emitter_shape_disc": {"plane_normal": "y", "radius": 0.35,
-                                     "direction": ["math.random(-0.6, 0.6)", "math.random(1.2, 2.2)",
-                                                   "math.random(-0.6, 0.6)"]},
+    "minecraft:emitter_shape_disc": {"plane_normal": "y", "radius": 0.3,
+                                     "direction": ["math.random(-0.5, 0.5)", "math.random(1.4, 2.4)",
+                                                   "math.random(-0.5, 0.5)"]},
     "minecraft:particle_initialization": {"per_render_expression": LT},
-    "minecraft:particle_lifetime_expression": {"max_lifetime": "math.random(0.4, 0.8)"},
-    "minecraft:particle_initial_speed": "math.random(4.0, 8.0)",
-    "minecraft:particle_motion_dynamic": {"linear_acceleration": [0, -9, 0], "linear_drag_coefficient": 1.5},
+    "minecraft:particle_lifetime_expression": {"max_lifetime": "math.random(0.3, 0.55)"},
+    "minecraft:particle_initial_speed": "math.random(6.0, 10.0)",
+    "minecraft:particle_motion_dynamic": {"linear_acceleration": [0, -14, 0], "linear_drag_coefficient": 1.0},
     "minecraft:particle_appearance_billboard": billboard(
-        "0.055 * (1.0 - variable.lt) + 0.015", "0.055 * (1.0 - variable.lt) + 0.015", uv("spark")),
+        "0.03 * (1.0 - 0.4 * variable.lt)", "0.17 * (1.0 - 0.5 * variable.lt)", uv("streak")),
     "minecraft:particle_appearance_tinting": {"color": [
-        1.0, "0.9 - 0.4 * variable.lt", "0.45 - 0.35 * variable.lt", "1.0 - variable.lt * variable.lt"]},
+        1.0, "1.0 - 0.35 * variable.lt", "0.72 - 0.6 * variable.lt", "math.pow(1.0 - variable.lt, 0.8)"]},
 }))
 
 reg("fx_debris", effect("sym:mk5_fx_debris", "particles_blend", {
-    "minecraft:emitter_rate_instant": {"num_particles": 10},
+    "minecraft:emitter_rate_instant": {"num_particles": 7},
     "minecraft:emitter_lifetime_once": {"active_time": 0.05},
-    "minecraft:emitter_shape_disc": {"plane_normal": "y", "offset": [0, 0.1, 0], "radius": 0.6,
-                                     "direction": ["math.random(-1.0, 1.0)", "math.random(1.5, 3.0)",
+    "minecraft:emitter_shape_disc": {"plane_normal": "y", "offset": [0, 0.1, 0], "radius": 0.55,
+                                     "direction": ["math.random(-1.0, 1.0)", "math.random(1.6, 3.0)",
                                                    "math.random(-1.0, 1.0)"]},
     "minecraft:particle_initialization": {"per_render_expression": LT},
-    "minecraft:particle_lifetime_expression": {"max_lifetime": "math.random(0.8, 1.4)"},
-    "minecraft:particle_initial_speed": "math.random(3.0, 6.0)",
-    "minecraft:particle_initial_spin": {"rotation": "math.random(0, 360)", "rotation_rate": "math.random(-360, 360)"},
-    "minecraft:particle_motion_dynamic": {"linear_acceleration": [0, -18, 0], "linear_drag_coefficient": 0.5},
-    "minecraft:particle_motion_collision": {"collision_radius": 0.05, "coefficient_of_restitution": 0.3,
-                                            "collision_drag": 4},
+    "minecraft:particle_lifetime_expression": {"max_lifetime": "math.random(0.45, 0.75)"},
+    "minecraft:particle_initial_speed": "math.random(4.0, 7.0)",
+    "minecraft:particle_initial_spin": {"rotation": "math.random(0, 360)", "rotation_rate": "math.random(-300, 300)"},
+    "minecraft:particle_motion_dynamic": {"linear_acceleration": [0, -20, 0], "linear_drag_coefficient": 0.4},
+    "minecraft:particle_motion_collision": {"collision_radius": 0.05, "coefficient_of_restitution": 0.2,
+                                            "collision_drag": 5},
     "minecraft:particle_appearance_billboard": billboard(
-        "0.05 + 0.04 * variable.particle_random_2", "0.05 + 0.04 * variable.particle_random_2", uv("debris")),
+        "0.045 + 0.03 * variable.particle_random_2", "0.045 + 0.03 * variable.particle_random_2", uv("chunk")),
     "minecraft:particle_appearance_lighting": {},
     "minecraft:particle_appearance_tinting": {"color": [
-        "0.38 + 0.12 * variable.particle_random_4", "0.35 + 0.1 * variable.particle_random_4",
-        "0.31 + 0.08 * variable.particle_random_4", "math.clamp((1.0 - variable.lt) * 5.0, 0.0, 1.0)"]},
+        "0.72 + 0.14 * variable.particle_random_4", "0.67 + 0.12 * variable.particle_random_4",
+        "0.58 + 0.1 * variable.particle_random_4", "math.clamp((1.0 - variable.lt) * 6.0, 0.0, 1.0)"]},
 }))
 
+FL_SIZE = f"0.45 + 1.15 * {ease_out(2.0)}"
 reg("fx_impact_flash", effect("sym:mk5_fx_impact_flash", "particles_add", {
     "minecraft:emitter_rate_instant": {"num_particles": 1},
     "minecraft:emitter_lifetime_once": {"active_time": 0.05},
-    "minecraft:emitter_shape_point": {"offset": [0, 0.1, 0]},
+    "minecraft:emitter_shape_point": {"offset": [0, 0.25, 0]},
     "minecraft:particle_initialization": {"per_render_expression": LT},
-    "minecraft:particle_lifetime_expression": {"max_lifetime": 0.3},
+    "minecraft:particle_lifetime_expression": {"max_lifetime": 0.18},
     "minecraft:particle_initial_speed": 0,
-    "minecraft:particle_appearance_billboard": billboard(
-        f"0.2 + 2.2 * {ease_out(2.0)}", f"0.2 + 2.2 * {ease_out(2.0)}", uv("ring_thin"), mode="emitter_transform_xz"),
-    "minecraft:particle_appearance_tinting": {"color": [1.0, 0.92, 0.55, "math.pow(1.0 - variable.lt, 1.5)"]},
+    "minecraft:particle_appearance_billboard": billboard(FL_SIZE, FL_SIZE, uv("burst")),
+    "minecraft:particle_appearance_tinting": {"color": [
+        1.0, "0.98 - 0.22 * variable.lt", "0.82 - 0.5 * variable.lt", "math.pow(1.0 - variable.lt, 1.7)"]},
+}))
+
+# ============================================================ boost contrail (SPEC 12.4, NEW)
+# A short line of crisp beads laid along `dir` from the boot: yellow-white at the nozzle, fading to
+# a faint cyan-white tail. It inherits 60 % of the suit velocity (`vel`, blocks/tick) and is dragged
+# down from there, so at boost speed the segments stay readable instead of being left behind.
+TVX, TVY, TVZ = "(variable.vel.x * 12.0)", "(variable.vel.y * 12.0 + 0.0001)", "(variable.vel.z * 12.0)"
+TRAIL_SIZE = "(0.095 - 0.05 * variable.particle_random_1) * (1.0 - 0.4 * variable.lt)"
+reg("trail", effect("sym:mk5_trail", "particles_add", {
+    "minecraft:emitter_initialization": {
+        "creation_expression": DIR_DEFAULT.format(x="0.0", y="-1.0", z="0.0") + VEL_DEFAULT},
+    "minecraft:emitter_rate_instant": {"num_particles": 7},
+    "minecraft:emitter_lifetime_once": {"active_time": 0.05},
+    "minecraft:emitter_shape_custom": {
+        "offset": ["variable.dir.x * variable.particle_random_1 * 0.85 + math.random(-0.015, 0.015)",
+                   "variable.dir.y * variable.particle_random_1 * 0.85 + math.random(-0.015, 0.015)",
+                   "variable.dir.z * variable.particle_random_1 * 0.85 + math.random(-0.015, 0.015)"],
+        "direction": [TVX, TVY, TVZ],
+    },
+    "minecraft:particle_initialization": {"per_render_expression": LT},
+    "minecraft:particle_lifetime_expression": {"max_lifetime": "0.2 + variable.particle_random_2 * 0.06"},
+    "minecraft:particle_initial_speed": f"math.sqrt({TVX} * {TVX} + {TVY} * {TVY} + {TVZ} * {TVZ})",
+    "minecraft:particle_motion_dynamic": {"linear_drag_coefficient": 3.0},
+    "minecraft:particle_appearance_billboard": billboard(TRAIL_SIZE, TRAIL_SIZE, uv("dot")),
+    "minecraft:particle_appearance_tinting": {"color": [
+        "1.0 - 0.3 * variable.particle_random_1 - 0.2 * variable.lt",
+        "1.0 - 0.05 * variable.particle_random_1",
+        "math.clamp(0.66 + 0.3 * variable.particle_random_1 + 0.25 * variable.lt, 0.0, 1.0)",
+        "(0.9 - 0.45 * variable.particle_random_1) * math.pow(1.0 - variable.lt, 1.3)"]},
 }))
 
 # ============================================================ scanner

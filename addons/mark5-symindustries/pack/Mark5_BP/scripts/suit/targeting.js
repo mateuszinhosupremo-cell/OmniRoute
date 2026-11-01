@@ -27,8 +27,8 @@
 import { system, world } from "@minecraft/server";
 import { FX, PROP, SCRIPT_EVENT, SND, TUNING as T } from "./constants.js";
 import { inCone, lockStep, reticleCode, vdist } from "./calc.js";
-import { actionbar, molang, playerParticle, playerSound, quiet } from "./fx.js";
-import { pushAlert } from "./hud.js";
+import { molang, playerParticle, playerSound, quiet } from "./fx.js";
+import { notify, pushAlert } from "./hud.js";
 import { scannable, sizeOf } from "./scanner.js";
 import { peekState, spendEnergy } from "./state.js";
 import { shortName } from "./mobs.js";
@@ -130,7 +130,9 @@ export function setLockArmed(player, st, armed) {
   quiet(() => player.setDynamicProperty(PROP.LOCK_MODE, armed ? true : undefined));
   if (!armed) dropLock(player, st, "disarmed");
   resetCandidate(st.lock);
-  actionbar(player, armed ? "§c§lMIRA TELEGUIADA ARMADA§r §7— mire em um alvo para travar" : "§7Mira teleguiada desarmada");
+  notify(player, st, armed ? "§c§lMIRA TELEGUIADA ARMADA§r §7— mire em um alvo para travar" : "§7Mira teleguiada desarmada", {
+    type: armed ? "w" : "i",
+  });
 }
 
 /**
@@ -142,7 +144,7 @@ function lockOn(player, st, look, tick) {
   const l = st.lock;
   if (!spendEnergy(st, T.LOCK_ACQUIRE_COST)) {
     resetCandidate(l);
-    actionbar(player, "§cEnergia insuficiente para travar o alvo");
+    notify(player, st, "§cEnergia insuficiente para travar o alvo");
     return;
   }
   if (l.targetId) dropLock(player, st, "switch", { silent: true, keepCandidate: true });
