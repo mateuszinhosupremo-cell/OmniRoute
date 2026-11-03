@@ -1,0 +1,36 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:attachable": {
+    "description": {
+      "identifier": "sym:mark_5_suitcase",
+      "materials": {
+        "default": "entity_emissive_alpha"
+      },
+      "textures": {
+        "default": "textures/sym/mk5"
+      },
+      "geometry": {
+        "default": "geometry.sym.mk5"
+      },
+      "animations": {
+        "held": "animation.sym.mk5.held",
+        "hidden": "animation.sym.mk5.hidden",
+        "first_person": "animation.sym.mk5.first_person",
+        "first_person_busy_hand": "animation.sym.mk5.first_person_busy_hand"
+      },
+      "scripts": {
+        "animate": [
+          {
+            "held": "c.item_slot != 'off_hand'"
+          },
+          {
+            "hidden": "c.item_slot == 'off_hand'"
+          }
+        ]
+      },
+      "render_controllers": [
+        "controller.render.sym_mk5"
+      ]
+    }
+  }
+}

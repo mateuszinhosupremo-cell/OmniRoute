@@ -1,0 +1,29 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "§cMark V§r — Sym Industries (Recursos)",
+    "description": "Mark V v2.0 — montagem cinematográfica, HUD holográfico com armadura 3D, energia, voo com propulsores, scanners e mira teleguiada",
+    "uuid": "6f1c2b8e-4d1a-4e7b-9a52-3c8e5f0d7a11",
+    "version": [
+      2,
+      0,
+      0
+    ],
+    "min_engine_version": [
+      1,
+      26,
+      0
+    ]
+  },
+  "modules": [
+    {
+      "type": "resources",
+      "uuid": "a3b9d4e2-7c15-4f6a-8e21-9d0c4b6f2e32",
+      "version": [
+        2,
+        0,
+        0
+      ]
+    }
+  ]
+}

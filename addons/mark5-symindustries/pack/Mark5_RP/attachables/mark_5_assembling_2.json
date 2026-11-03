@@ -1,0 +1,40 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:attachable": {
+    "description": {
+      "identifier": "sym:mark_5_assembling_2",
+      "materials": {
+        "default": "entity_emissive_alpha"
+      },
+      "textures": {
+        "default": "textures/sym/mk5"
+      },
+      "geometry": {
+        "default": "geometry.sym.mk5"
+      },
+      "animations": {
+        "held": "animation.sym.mk5.held",
+        "hidden": "animation.sym.mk5.hidden",
+        "first_person": "animation.sym.mk5.first_person",
+        "first_person_busy_hand": "animation.sym.mk5.first_person_busy_hand",
+        "sequence": "animation.sym.mk5.suitup_2"
+      },
+      "scripts": {
+        "animate": [
+          {
+            "sequence": "!(c.item_slot == 'main_hand' || c.item_slot == 'off_hand')"
+          },
+          {
+            "hidden": "(c.item_slot == 'main_hand' || c.item_slot == 'off_hand')"
+          },
+          {
+            "first_person": "c.is_first_person && !(c.item_slot == 'main_hand' || c.item_slot == 'off_hand')"
+          }
+        ]
+      },
+      "render_controllers": [
+        "controller.render.sym_mk5"
+      ]
+    }
+  }
+}

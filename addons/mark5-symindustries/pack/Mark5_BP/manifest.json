@@ -1,0 +1,58 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "§cMark V§r — Sym Industries (Comportamento)",
+    "description": "Mark V v2.0 — maleta com cinemática, energia do Reator Arc, HUD holográfico no visor, voo, scanner de área e mira teleguiada. Use o Reator Arc para abrir o painel.",
+    "uuid": "c7e2f915-2b84-4d3c-a6f7-1e5d8b9c0a43",
+    "version": [
+      2,
+      0,
+      0
+    ],
+    "min_engine_version": [
+      1,
+      26,
+      0
+    ]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "e4d1a6b3-9f27-4c58-b1e9-7a2c3d5f6b54",
+      "version": [
+        2,
+        0,
+        0
+      ]
+    },
+    {
+      "type": "script",
+      "language": "javascript",
+      "uuid": "1b8f3c7d-5e46-4a9b-82d3-6f0e9a1c4d65",
+      "entry": "scripts/main.js",
+      "version": [
+        2,
+        0,
+        0
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "module_name": "@minecraft/server",
+      "version": "2.3.0"
+    },
+    {
+      "module_name": "@minecraft/server-ui",
+      "version": "2.0.0"
+    },
+    {
+      "uuid": "6f1c2b8e-4d1a-4e7b-9a52-3c8e5f0d7a11",
+      "version": [
+        2,
+        0,
+        0
+      ]
+    }
+  ]
+}

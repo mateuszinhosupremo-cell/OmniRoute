@@ -1,0 +1,17 @@
+pack.name=Mark V — Sym Industries
+pack.description=Mark V v2.0 — montagem cinematográfica, HUD holográfico com armadura 3D, energia, voo com propulsores, scanners e mira teleguiada
+entity.sym:mk5_case.name=Maleta Mark V
+item.sym:mark_5_suitcase=Maleta Mark V
+item.sym:mark_5=Armadura Mark V
+item.sym:mark_5_reactor=Reator Arc (Painel Mark V)
+item.sym:mark_5_open=Armadura Mark V
+item.sym:mark_5_opening=Armadura Mark V
+item.sym:mark_5_closing=Armadura Mark V
+item.sym:mark_5_powerdown=Armadura Mark V
+item.sym:mark_5_offline=Armadura Mark V
+item.sym:mark_5_offline_open=Armadura Mark V
+item.sym:mark_5_offline_opening=Armadura Mark V
+item.sym:mark_5_offline_closing=Armadura Mark V
+item.sym:mark_5_powerup=Armadura Mark V
+item.sym:mark_5_flying=Armadura Mark V
+item.sym:mark_5_open_flying=Armadura Mark V

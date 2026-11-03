@@ -1,0 +1,75 @@
+{
+  "format_version": "1.10.0",
+  "particle_effect": {
+    "description": {
+      "identifier": "sym:mk5_shield_hit",
+      "basic_render_parameters": {
+        "material": "particles_add",
+        "texture": "textures/sym/particle/mk5_fx"
+      }
+    },
+    "events": {
+      "sparks": {
+        "particle_effect": {
+          "effect": "sym:mk5_spark",
+          "type": "emitter"
+        }
+      },
+      "arcs": {
+        "particle_effect": {
+          "effect": "sym:mk5_fx_arcs",
+          "type": "emitter"
+        }
+      }
+    },
+    "components": {
+      "minecraft:emitter_rate_instant": {
+        "num_particles": 1
+      },
+      "minecraft:emitter_lifetime_once": {
+        "active_time": 0.05
+      },
+      "minecraft:emitter_lifetime_events": {
+        "creation_event": [
+          "sparks",
+          "arcs"
+        ]
+      },
+      "minecraft:emitter_shape_point": {},
+      "minecraft:particle_initialization": {
+        "per_render_expression": "variable.lt = math.clamp(variable.particle_age / variable.particle_lifetime, 0.0, 1.0);"
+      },
+      "minecraft:particle_lifetime_expression": {
+        "max_lifetime": 0.38
+      },
+      "minecraft:particle_initial_speed": 0,
+      "minecraft:particle_appearance_billboard": {
+        "size": [
+          "1.05 + 0.15 * variable.lt",
+          "1.05 + 0.15 * variable.lt"
+        ],
+        "facing_camera_mode": "lookat_xyz",
+        "uv": {
+          "texture_width": 256,
+          "texture_height": 576,
+          "uv": [
+            128,
+            0
+          ],
+          "uv_size": [
+            64,
+            64
+          ]
+        }
+      },
+      "minecraft:particle_appearance_tinting": {
+        "color": [
+          0.35,
+          0.85,
+          1.0,
+          "math.pow(1.0 - variable.lt, 1.4) * (0.8 + 0.2 * math.sin(variable.particle_age * 3000.0))"
+        ]
+      }
+    }
+  }
+}

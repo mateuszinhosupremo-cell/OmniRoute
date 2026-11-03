@@ -1,0 +1,932 @@
+// Mark V — suitcase suit-up for Minecraft Bedrock (Script API @minecraft/server 2.0.0)
+//
+// Flow (use the "Maleta Mark V" item):
+//   throw the case onto the ground -> walk up to it -> step on it -> it unfolds and the Mark V
+//   assembles piece by piece (original 16 s choreography) -> power on (skin hidden, armor 20).
+// Sneak + use places the case on the ground instead; walking onto it starts the suit-up.
+// While wearing the Mark V: look down and tap sneak twice to take it off (case back in hand).
+
+import {
+  ButtonState,
+  EasingType,
+  EquipmentSlot,
+  GameMode,
+  HudVisibility,
+  InputButton,
+  InputPermissionCategory,
+  ItemLockMode,
+  ItemStack,
+  system,
+  world,
+} from "@minecraft/server";
+
+const ITEM_CASE = "sym:mark_5_suitcase";
+const ITEM_SUIT = "sym:mark_5";
+const ITEM_REACTOR = "sym:mark_5_reactor"; // given after the suit-up; using it takes the suit off
+const WELCOME_PROP = "sym:mk5_welcome";
+// Chest stand-ins worn while the suit moves. Each one plays its own slice of the animation and
+// tells the player render controller which skin regions to hide (arms+torso, legs, head).
+const ASSEMBLING = [1, 2, 3, 4].map((n) => `sym:mark_5_assembling_${n}`);
+const DISASSEMBLING = [1, 2, 3, 4].map((n) => `sym:mark_5_disassembling_${n}`);
+const SUITUP_STAGE_TICKS = [0, 170, 224, 256]; // original 1.5 s, 10.0 s, 12.7 s, 14.3 s
+const SUITOFF_STAGE_TICKS = [0, 35, 66, 110]; // original 0 s, 1.75 s, 3.3 s, 5.5 s
+const isAssembling = (id) => ASSEMBLING.includes(id);
+const isDisassembling = (id) => DISASSEMBLING.includes(id);
+const ENTITY_CASE = "sym:mk5_case";
+const ANIM_CONTROLLER = "sym_mk5";
+const CASE_TAG_IDLE = "sym_mk5_idle";
+const STATE_PROP = "sym:mk5_state"; // "suitup" | "suitoff" while a sequence runs (crash recovery)
+
+// Distance (blocks) between the player's feet and the closed case at the moment of the step;
+// it comes from the original model layout (case centre 9 px in front of the feet).
+const CASE_OFFSET = 9 / 16;
+const THROW_RELEASE = 12; // ticks into the throw animation when the case leaves the hand
+const FLIGHT_TICKS = 13;
+const LAND_TICKS = 10;
+const WALK_SPEED = 2.4; // blocks per second, dramatic walk
+const WALK_HALF_CYCLE = 8; // ticks; the walk animation is neutral every 0.4 s
+const SUITUP_TICKS = 290; // 14.5 s (original 1.5 s .. 16.0 s)
+const SUITOFF_TICKS = 320; // 16 s
+const MAX_THROW = 3.4;
+const MIN_THROW = 1.4;
+
+/** @type {Map<string, Session>} */
+const sessions = new Map();
+const lastUseTick = new Map();
+const sneakTaps = new Map();
+
+/**
+ * @typedef {Object} Session
+ * @property {import("@minecraft/server").Player} player
+ * @property {string} kind
+ * @property {number} tick
+ * @property {Array<{at:number, run:() => void}>} steps
+ * @property {(() => void)[]} [everyTick]
+ * @property {number} total
+ * @property {number} [damage]
+ * @property {import("@minecraft/server").Entity} [caseEntity]
+ * @property {boolean} [done]
+ */
+
+// ---------------------------------------------------------------------------------------------
+// small vector helpers
+// ---------------------------------------------------------------------------------------------
+
+const add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
+const mul = (a, s) => ({ x: a.x * s, y: a.y * s, z: a.z * s });
+const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t });
+const flatDir = (yaw) => {
+  const r = (yaw * Math.PI) / 180;
+  return { x: -Math.sin(r), y: 0, z: Math.cos(r) };
+};
+const rightOf = (f) => ({ x: -f.z, y: 0, z: f.x });
+const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+
+function safeRun(fn) {
+  try {
+    fn();
+  } catch (err) {
+    console.warn(`[Mark V] ${err}`);
+  }
+}
+
+function cmd(player, command) {
+  safeRun(() => player.runCommand(command));
+}
+
+// ---------------------------------------------------------------------------------------------
+// world queries
+// ---------------------------------------------------------------------------------------------
+
+// plants, carpets, torches... can be walked through (Block.isSolid is not in the 2.0.0 API)
+const PASSABLE_RE =
+  /(flower|tulip|sapling|short_grass|tall_grass|^minecraft:grass$|fern|bush$|torch|mushroom$|rail|redstone_wire|carpet|button|lever|pressure_plate|_sign|banner|vine|roots|sprouts|petals|leaf_litter|snow_layer|wheat|carrots|potatoes|beetroot|daisy|orchid|allium|bluet|poppy|dandelion|cornflower|lily_of_the_valley|wither_rose|lilac|peony|sunflower|sweet_berry|cobweb|structure_void|light_block)/;
+
+function passable(dimension, loc) {
+  try {
+    const block = dimension.getBlock(loc);
+    if (!block) return false;
+    return block.isAir || block.isLiquid || PASSABLE_RE.test(block.typeId);
+  } catch {
+    return false; // unloaded / out of world: treat as blocked
+  }
+}
+
+function isLiquid(dimension, loc) {
+  try {
+    return !!dimension.getBlock(loc)?.isLiquid;
+  } catch {
+    return false;
+  }
+}
+
+/** Exact top surface under x/z near `nearY` (slabs, paths, carpets), ignoring plants. */
+function surfaceY(dimension, x, z, nearY) {
+  try {
+    const hit = dimension.getBlockFromRay({ x, y: nearY + 0.9, z }, { x: 0, y: -1, z: 0 }, {
+      maxDistance: 2.5,
+      includePassableBlocks: false,
+      includeLiquidBlocks: true,
+    });
+    if (!hit || hit.block.isLiquid) return undefined;
+    return hit.block.location.y + hit.faceLocation.y;
+  } catch {
+    return undefined;
+  }
+}
+
+/** How far (up to `max`) the player can walk straight ahead on flat ground with head room. */
+function clearDistance(player, dir, max) {
+  const dim = player.dimension;
+  const start = player.location;
+  let ok = 0;
+  for (let d = 0.5; d <= max + 1e-6; d += 0.25) {
+    const p = add(start, mul(dir, d));
+    const s = surfaceY(dim, p.x, p.z, start.y);
+    // the case lies at the player's floor height, so the path must stay level
+    if (s === undefined || Math.abs(s - start.y) > 0.3) break;
+    const feet = { x: p.x, y: Math.floor(s + 0.5), z: p.z };
+    if (!passable(dim, feet) || isLiquid(dim, feet) || !passable(dim, { ...feet, y: feet.y + 1 })) break;
+    ok = d;
+  }
+  return ok;
+}
+
+function cameraSpot(player, target, wanted) {
+  // pull the camera in front of walls so it never ends up inside blocks
+  const dim = player.dimension;
+  const delta = { x: wanted.x - target.x, y: wanted.y - target.y, z: wanted.z - target.z };
+  const len = Math.hypot(delta.x, delta.y, delta.z);
+  if (len < 0.01) return wanted;
+  const dir = mul(delta, 1 / len);
+  try {
+    const hit = dim.getBlockFromRay(target, dir, { maxDistance: len, includeLiquidBlocks: false });
+    if (hit) {
+      const p = add(hit.block.location, hit.faceLocation);
+      const dist = Math.max(0.6, Math.hypot(p.x - target.x, p.y - target.y, p.z - target.z) - 0.35);
+      return add(target, mul(dir, dist));
+    }
+  } catch {
+    // ray left the loaded area; keep the requested spot
+  }
+  return wanted;
+}
+
+// ---------------------------------------------------------------------------------------------
+// player helpers
+// ---------------------------------------------------------------------------------------------
+
+function equippable(player) {
+  return player.getComponent("minecraft:equippable");
+}
+
+function inventory(player) {
+  return player.getComponent("minecraft:inventory")?.container;
+}
+
+function giveOrDrop(player, item) {
+  if (!item) return;
+  const container = inventory(player);
+  const rest = container ? container.addItem(item) : item;
+  if (rest) player.dimension.spawnItem(rest, player.location);
+}
+
+function wearing(player, id) {
+  return equippable(player)?.getEquipment(EquipmentSlot.Chest)?.typeId === id;
+}
+
+function lockPlayer(player, locked) {
+  safeRun(() => {
+    player.inputPermissions.setPermissionCategory(InputPermissionCategory.Movement, !locked);
+    player.inputPermissions.setPermissionCategory(InputPermissionCategory.Camera, !locked);
+  });
+  safeRun(() => player.onScreenDisplay.setHudVisibility(locked ? HudVisibility.Hide : HudVisibility.Reset));
+}
+
+function playBody(player, animation, blendOut = 0.25, loop = false) {
+  // playAnimation stops when query.any_animation_finished turns true, i.e. after one cycle of a
+  // looping clip; loops run until the next clip on the same controller replaces them
+  const options = { controller: ANIM_CONTROLLER, blendOutTime: blendOut };
+  if (loop) options.stopExpression = "0";
+  safeRun(() => player.playAnimation(animation, options));
+}
+
+/** Animate an entity spawned this tick once its client copy exists. */
+function playLater(entity, animation, loop = false) {
+  system.runTimeout(() => {
+    if (!entity.isValid) return;
+    const options = { controller: "sym_case" };
+    if (loop) options.stopExpression = "0";
+    safeRun(() => entity.playAnimation(animation, options));
+  }, 2);
+}
+
+function shot(player, target, pos, seconds, ease = EasingType.InOutSine) {
+  safeRun(() =>
+    player.camera.setCamera("minecraft:free", {
+      location: cameraSpot(player, target, pos),
+      facingLocation: target,
+      easeOptions: { easeTime: seconds, easeType: ease },
+    })
+  );
+}
+
+function sound(player, id, location, volume = 1, pitch = 1) {
+  safeRun(() => player.dimension.playSound(id, location ?? player.location, { volume, pitch }));
+}
+
+function sparks(player, location, effect = "sym:mk5_spark") {
+  safeRun(() => player.dimension.spawnParticle(effect, location));
+}
+
+function shake(player, intensity, seconds) {
+  cmd(player, `camerashake add @s ${intensity} ${seconds} positional`);
+}
+
+/** Move whatever is worn out of the way so nothing clips through the Mark V. */
+function clearArmorSlots(player, keepChest) {
+  const eq = equippable(player);
+  if (!eq) return;
+  const slots = [EquipmentSlot.Head, EquipmentSlot.Legs, EquipmentSlot.Feet];
+  if (!keepChest) slots.push(EquipmentSlot.Chest);
+  for (const slot of slots) {
+    const item = eq.getEquipment(slot);
+    if (!item) continue;
+    if (item.typeId === ITEM_SUIT || isAssembling(item.typeId) || isDisassembling(item.typeId)) continue;
+    eq.setEquipment(slot, undefined);
+    giveOrDrop(player, item);
+  }
+}
+
+const DAMAGE_PROP = "sym:mk5_damage"; // suit wear survives the trips in and out of the case
+
+function suitItem(damage = 0) {
+  const item = new ItemStack(ITEM_SUIT, 1);
+  safeRun(() => item.setLore(["§7Sym Industries — Mark V", "§bProteção: diamante completa"]));
+  safeRun(() => {
+    const dur = item.getComponent("minecraft:durability");
+    if (dur && damage > 0) dur.damage = Math.min(dur.maxDurability - 1, damage);
+  });
+  return item;
+}
+
+function reactorItem() {
+  const item = new ItemStack(ITEM_REACTOR, 1);
+  safeRun(() => item.setLore(["§7Use para desmontar a Mark V", "§7(volta a ser a maleta)"]));
+  return item;
+}
+
+function hasItem(player, id) {
+  const eq = equippable(player);
+  if (eq?.getEquipment(EquipmentSlot.Mainhand)?.typeId === id || eq?.getEquipment(EquipmentSlot.Offhand)?.typeId === id) return true;
+  const container = inventory(player);
+  if (!container) return false;
+  for (let i = 0; i < container.size; i++) if (container.getItem(i)?.typeId === id) return true;
+  return false;
+}
+
+/** Take one Arc Reactor from the hands or the inventory (it turns back into the case). */
+function takeReactor(player) {
+  const eq = equippable(player);
+  for (const slot of [EquipmentSlot.Mainhand, EquipmentSlot.Offhand]) {
+    if (eq?.getEquipment(slot)?.typeId === ITEM_REACTOR) {
+      eq.setEquipment(slot, undefined);
+      return;
+    }
+  }
+  const container = inventory(player);
+  if (!container) return;
+  for (let i = 0; i < container.size; i++) {
+    if (container.getItem(i)?.typeId === ITEM_REACTOR) {
+      container.setItem(i, undefined);
+      return;
+    }
+  }
+}
+
+function caseItem(damage = 0) {
+  const item = new ItemStack(ITEM_CASE, 1);
+  if (damage > 0) safeRun(() => item.setDynamicProperty(DAMAGE_PROP, damage));
+  return item;
+}
+
+function tempItem(id, damage = 0) {
+  // assembling/disassembling stand-ins cannot be moved out of the chest slot or dropped
+  const item = new ItemStack(id, 1);
+  safeRun(() => {
+    item.lockMode = ItemLockMode.slot;
+    item.keepOnDeath = true;
+  });
+  if (damage > 0) safeRun(() => item.setDynamicProperty(DAMAGE_PROP, damage));
+  return item;
+}
+
+function storedDamage(holder) {
+  let damage = 0;
+  safeRun(() => (damage = Number(holder?.getDynamicProperty(DAMAGE_PROP) ?? 0)));
+  return damage;
+}
+
+/** Remove one case from the main hand and return the suit wear it carried. */
+function takeCaseFromHand(player) {
+  const eq = equippable(player);
+  const held = eq.getEquipment(EquipmentSlot.Mainhand);
+  if (held?.typeId !== ITEM_CASE) return undefined;
+  let damage = 0;
+  safeRun(() => (damage = Number(held.getDynamicProperty(DAMAGE_PROP) ?? 0)));
+  if (held.amount > 1) {
+    held.amount -= 1;
+    eq.setEquipment(EquipmentSlot.Mainhand, held);
+  } else {
+    eq.setEquipment(EquipmentSlot.Mainhand, undefined);
+  }
+  return damage;
+}
+
+// ---------------------------------------------------------------------------------------------
+// session runner
+// ---------------------------------------------------------------------------------------------
+
+function startSession(player, kind, steps, totalTicks, everyTick) {
+  const session = { player, kind, tick: 0, steps, everyTick, total: totalTicks };
+  sessions.set(player.id, session);
+  safeRun(() => player.setDynamicProperty(STATE_PROP, kind));
+  return session;
+}
+
+function endSession(session, restore = true) {
+  session.done = true;
+  sessions.delete(session.player.id);
+  const player = session.player;
+  if (!player.isValid) return;
+  safeRun(() => player.setDynamicProperty(STATE_PROP, undefined));
+  if (restore) {
+    lockPlayer(player, false);
+    safeRun(() => player.camera.clear());
+  }
+}
+
+system.runInterval(() => {
+  for (const session of [...sessions.values()]) {
+    const player = session.player;
+    if (!player.isValid) {
+      sessions.delete(player.id);
+      continue;
+    }
+    for (const step of session.steps) {
+      if (step.at === session.tick) safeRun(step.run);
+    }
+    if (session.everyTick) for (const fn of session.everyTick) safeRun(fn);
+    session.tick++;
+    if (session.tick > session.total && !session.done) endSession(session);
+  }
+}, 1);
+
+// ---------------------------------------------------------------------------------------------
+// SUIT-UP
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * @param {import("@minecraft/server").Player} player
+ * @param {{ x:number, y:number, z:number }} stand where the feet end up (right behind the case)
+ * @param {number} yaw
+ * @param {number} startTick tick (inside the session) when the step on the case begins
+ * @param {Array<{at:number, run:() => void}>} steps
+ */
+function addSuitUpSteps(player, stand, yaw, startTick, steps, getDamage) {
+  const f = flatDir(yaw);
+  const r = rightOf(f);
+  const at = (local, run) => steps.push({ at: startTick + local, run });
+  const P = (fx, rx, uy) => add(stand, add(add(mul(f, fx), mul(r, rx)), { x: 0, y: uy, z: 0 }));
+  const look = (uy, fx = 0) => P(fx, 0, uy);
+  // original timeline τ = local/20 + 1.5 s
+
+  SUITUP_STAGE_TICKS.forEach((tick, i) => {
+    if (i > 0) at(tick, () => equippable(player).setEquipment(EquipmentSlot.Chest, tempItem(ASSEMBLING[i], getDamage())));
+  });
+  at(0, () => {
+    const eq = equippable(player);
+    clearArmorSlots(player, false);
+    eq.setEquipment(EquipmentSlot.Chest, tempItem(ASSEMBLING[0], getDamage()));
+    playBody(player, "animation.sym.player.mk5_suitup", 0.3);
+    sound(player, "sym.mk5.suitup", stand);
+    shot(player, look(0.45, 0.35), P(1.7, 1.25, 0.55), 0.9);
+  });
+  // τ 1.5–3.3: step onto the case, it opens under the feet and flips up against the legs
+  at(16, () => {
+    // the right foot lands on the closed lid
+    sound(player, "armor.equip_netherite", P(0.5, 0, 0.3), 0.9, 0.75);
+    sparks(player, P(0.5, -0.12, 0.35));
+  });
+  at(30, () => {
+    sparks(player, P(0.35, 0, 0.3));
+    shake(player, 0.05, 0.25);
+  });
+  at(36, () => shot(player, look(0.9), P(2.4, -1.7, 1.2), 3.6));
+  // τ 4.9–5.8: arms thrown up, gloves come out
+  at(70, () => {
+    sparks(player, P(0.2, 0.45, 1.85));
+    sparks(player, P(0.2, -0.45, 1.85));
+  });
+  at(84, () => shot(player, look(1.15), P(2.0, 2.2, 1.5), 2.8));
+  // τ 7.3–9.3: chest plates, back, shoulders, elbows lock
+  at(117, () => {
+    sparks(player, P(0.25, 0, 1.35));
+    shake(player, 0.06, 0.3);
+    sound(player, "armor.equip_iron", stand, 0.9, 0.9);
+  });
+  at(124, () => shot(player, look(1.25), P(-2.1, 1.6, 1.7), 2.6));
+  at(140, () => {
+    sparks(player, P(0, 0.45, 1.25));
+    sparks(player, P(0, -0.45, 1.25));
+  });
+  at(160, () => sparks(player, P(-0.2, 0, 1.3)));
+  // τ 10–10.6: upper legs; τ 10.8–11.75: helmet frame
+  at(170, () => shot(player, look(1.1), P(2.5, 0.35, 0.95), 1.9));
+  at(186, () => {
+    sound(player, "sym.mk5.helmet_close", stand, 0.8);
+    sparks(player, P(0.1, 0, 1.75));
+  });
+  // τ 11.3–12.7: lower legs lock
+  at(198, () => {
+    sparks(player, P(0.2, 0.15, 0.35));
+    sparks(player, P(0.2, -0.15, 0.35));
+    shake(player, 0.05, 0.2);
+  });
+  // τ 12–14.3: face plates close, close-up on the helmet
+  at(206, () => shot(player, look(1.62), P(1.15, 0.25, 1.68), 1.6));
+  at(254, () => sound(player, "sym.mk5.helmet_close", stand, 1.0, 1.1));
+  // τ 14.5–15.4: eyes light up
+  at(262, () => {
+    sound(player, "sym.mk5.power_on", stand, 1.0);
+    shake(player, 0.08, 0.35);
+  });
+  at(278, () => {
+    // fully assembled: real armor item (protection 20, skin hidden by the render controllers)
+    const eq = equippable(player);
+    eq.setEquipment(EquipmentSlot.Chest, suitItem(getDamage()));
+    if (!hasItem(player, ITEM_REACTOR)) {
+      if (!eq.getEquipment(EquipmentSlot.Mainhand)) eq.setEquipment(EquipmentSlot.Mainhand, reactorItem());
+      else giveOrDrop(player, reactorItem());
+    }
+    safeRun(() => player.onScreenDisplay.setHudVisibility(HudVisibility.Reset));
+    playBody(player, "animation.sym.player.mk5_poweron", 0.4);
+    sparks(player, P(0.05, 0, 1.2), "sym:mk5_power_burst");
+    safeRun(() =>
+      player.camera.fade({
+        fadeColor: { red: 0.75, green: 0.9, blue: 1 },
+        fadeTime: { fadeInTime: 0.08, holdTime: 0.05, fadeOutTime: 0.6 },
+      })
+    );
+    shot(player, look(1.15), P(3.2, 0.6, 1.25), 0.9, EasingType.OutCubic);
+    safeRun(() => {
+      player.onScreenDisplay.setTitle("§l§cMARK V", {
+        subtitle: "§bSistemas online",
+        fadeInDuration: 4,
+        stayDuration: 30,
+        fadeOutDuration: 12,
+      });
+    });
+  });
+  at(310, () =>
+    safeRun(() =>
+      player.camera.fade({
+        fadeColor: { red: 0, green: 0, blue: 0 },
+        fadeTime: { fadeInTime: 0.35, holdTime: 0.1, fadeOutTime: 0.4 },
+      })
+    )
+  );
+  at(318, () => {
+    lockPlayer(player, false);
+    safeRun(() => player.camera.clear());
+    safeRun(() =>
+      player.onScreenDisplay.setActionBar("§7Para tirar a Mark V: use o §bReator Arc§7 que está na sua mão")
+    );
+  });
+  return startTick + 320;
+}
+
+/** Full cinematic: throw the case ahead, walk up to it, step on it. */
+function beginThrowSequence(player) {
+  const rot = player.getRotation();
+  const yaw = rot.y;
+  const f = flatDir(yaw);
+  const r = rightOf(f);
+  const start = { ...player.location };
+  const dim = player.dimension;
+
+  const free = clearDistance(player, f, MAX_THROW + CASE_OFFSET);
+  let throwDist = Math.min(MAX_THROW, free - CASE_OFFSET);
+  if (throwDist < MIN_THROW) throwDist = 0; // no room: drop the case right at the feet
+
+  // the walk lasts a whole number of half-cycles so the legs end neutral
+  let walkTicks = 0;
+  if (throwDist > 0) {
+    walkTicks = Math.max(WALK_HALF_CYCLE, Math.round((throwDist / WALK_SPEED) * 20 / WALK_HALF_CYCLE) * WALK_HALF_CYCLE);
+  }
+  // clearDistance keeps the path level with the player's floor, so the case and the feet share
+  // the start height (the suit's own case appears at the feet in the same spot)
+  const stand = { ...add(start, mul(f, throwDist)), y: start.y };
+  const caseSpot = add(stand, mul(f, CASE_OFFSET));
+
+  const steps = [];
+  const at = (t, run) => steps.push({ at: t, run });
+  const handPos = add(add(add(start, mul(f, 0.45)), mul(r, 0.15)), { x: 0, y: 0.55, z: 0 });
+
+  const session = startSession(player, "suitup", steps, 0);
+  lockPlayer(player, true);
+  clearArmorSlots(player, true);
+
+  at(0, () => {
+    playBody(player, "animation.sym.player.mk5_throw", 0.15);
+    const mid = lerp(start, caseSpot, 0.5);
+    shot(player, add(mid, { x: 0, y: 0.6, z: 0 }), add(add(start, mul(f, -1.6)), add(mul(r, 2.1), { x: 0, y: 1.55, z: 0 })), 0.6);
+  });
+
+  let flight = 0;
+  let landed = false;
+
+  at(THROW_RELEASE, () => {
+    // the case leaves the hand (if it is no longer there — hotbar switch, dropped — abort)
+    const damage = takeCaseFromHand(player);
+    if (damage === undefined) {
+      endSession(session);
+      return;
+    }
+    session.damage = damage;
+    session.caseEntity = dim.spawnEntity(ENTITY_CASE, handPos);
+    safeRun(() => session.caseEntity.setRotation({ x: 0, y: yaw }));
+    if (damage > 0) safeRun(() => session.caseEntity.setDynamicProperty(DAMAGE_PROP, damage));
+    playLater(session.caseEntity, "animation.sym.mk5.case_tumble", true);
+    sound(player, "armor.equip_leather", handPos, 1, 0.8);
+  });
+
+  session.everyTick = [
+    () => {
+      // case flight (parabolic arc) and landing
+      const ent = session.caseEntity;
+      if (!ent?.isValid || landed) return;
+      flight++;
+      const t = Math.min(1, flight / FLIGHT_TICKS);
+      const p = lerp(handPos, caseSpot, t);
+      p.y += Math.sin(Math.PI * t) * (0.6 + throwDist * 0.18);
+      ent.teleport(p, { rotation: { x: 0, y: yaw } });
+      if (t >= 1) {
+        landed = true;
+        safeRun(() => ent.playAnimation("animation.sym.mk5.case_land", { controller: "sym_case" }));
+        sound(player, "random.anvil_land", caseSpot, 0.35, 1.7);
+        sound(player, "armor.equip_netherite", caseSpot, 0.9, 0.7);
+        safeRun(() => dim.spawnParticle("minecraft:critical_hit_emitter", add(caseSpot, { x: 0, y: 0.2, z: 0 })));
+      }
+    },
+  ];
+
+  const walkStart = THROW_RELEASE + FLIGHT_TICKS + LAND_TICKS;
+  if (walkTicks > 0) {
+    at(walkStart - 6, () =>
+      shot(player, add(lerp(start, stand, 0.6), { x: 0, y: 0.9, z: 0 }), add(add(caseSpot, mul(f, 2.3)), add(mul(r, 1.6), { x: 0, y: 1.0, z: 0 })), (walkTicks + 6) / 20)
+    );
+    at(walkStart, () => playBody(player, "animation.sym.player.mk5_walk", 0.1, true));
+    for (let i = 1; i <= walkTicks; i++) {
+      at(walkStart + i, () => {
+        const t = i / walkTicks;
+        const p = lerp(start, stand, easeInOut(t) * 0.15 + t * 0.85);
+        safeRun(() => player.teleport(p, { rotation: { x: 8, y: yaw }, keepVelocity: false }));
+      });
+    }
+  }
+  const stepTick = walkStart + walkTicks;
+  at(stepTick, () => {
+    safeRun(() => player.teleport(stand, { rotation: { x: 0, y: yaw }, keepVelocity: false }));
+    if (session.caseEntity?.isValid) session.caseEntity.remove(); // the suit's own case takes over
+  });
+  session.total = addSuitUpSteps(player, stand, yaw, stepTick, steps, () => session.damage ?? 0);
+}
+
+/** Suit-up started by walking onto a case that was placed on the ground earlier. */
+function beginFromPlacedCase(player, caseEntity) {
+  const yaw = caseEntity.getRotation().y;
+  const f = flatDir(yaw);
+  const stand = add(caseEntity.location, mul(f, -CASE_OFFSET));
+  stand.y = caseEntity.location.y;
+  const damage = storedDamage(caseEntity);
+  const steps = [];
+  const session = startSession(player, "suitup", steps, 0);
+  session.caseEntity = caseEntity;
+  session.damage = damage;
+  lockPlayer(player, true);
+  clearArmorSlots(player, true);
+  safeRun(() =>
+    player.camera.fade({
+      fadeColor: { red: 0, green: 0, blue: 0 },
+      fadeTime: { fadeInTime: 0.15, holdTime: 0.15, fadeOutTime: 0.35 },
+    })
+  );
+  steps.push({
+    at: 3,
+    run: () => {
+      safeRun(() => player.teleport(stand, { rotation: { x: 0, y: yaw }, keepVelocity: false }));
+      if (caseEntity.isValid) caseEntity.remove();
+    },
+  });
+  session.total = addSuitUpSteps(player, stand, yaw, 4, steps, () => damage);
+}
+
+/** Sneak + use: put the closed case down on the ground in front of the player. */
+function placeCase(player) {
+  const yaw = player.getRotation().y;
+  const f = flatDir(yaw);
+  const dist = Math.min(1.6, clearDistance(player, f, 1.6));
+  if (dist < 0.9) {
+    safeRun(() => player.onScreenDisplay.setActionBar("§cSem espaço para colocar a maleta aqui"));
+    return;
+  }
+  const spotXZ = add(player.location, mul(f, dist));
+  const spot = { x: spotXZ.x, y: surfaceY(player.dimension, spotXZ.x, spotXZ.z, player.location.y) ?? player.location.y, z: spotXZ.z };
+  const damage = takeCaseFromHand(player);
+  if (damage === undefined) return;
+  const ent = player.dimension.spawnEntity(ENTITY_CASE, spot);
+  safeRun(() => ent.setRotation({ x: 0, y: yaw }));
+  ent.addTag(CASE_TAG_IDLE);
+  if (damage > 0) ent.setDynamicProperty(DAMAGE_PROP, damage);
+  playLater(ent, "animation.sym.mk5.case_land");
+  sound(player, "armor.equip_netherite", spot, 0.9, 0.75);
+  safeRun(() =>
+    player.onScreenDisplay.setActionBar("§7Ande até a maleta e pise nela para vestir • bata nela para pegar de volta")
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// SUIT-OFF
+// ---------------------------------------------------------------------------------------------
+
+function beginSuitOff(player) {
+  const yaw = player.getRotation().y;
+  const f = flatDir(yaw);
+  const r = rightOf(f);
+  const stand = { ...player.location };
+  const P = (fx, rx, uy) => add(stand, add(add(mul(f, fx), mul(r, rx)), { x: 0, y: uy, z: 0 }));
+  const steps = [];
+  const at = (t, run) => steps.push({ at: t, run });
+  startSession(player, "suitoff", steps, SUITOFF_TICKS + 1);
+  lockPlayer(player, true);
+  safeRun(() => player.teleport(stand, { rotation: { x: 0, y: yaw }, keepVelocity: false }));
+  let damage = 0;
+  at(0, () => {
+    const eq = equippable(player);
+    const worn = eq.getEquipment(EquipmentSlot.Chest);
+    safeRun(() => (damage = worn?.getComponent("minecraft:durability")?.damage ?? 0));
+    eq.setEquipment(EquipmentSlot.Chest, tempItem(DISASSEMBLING[0], damage));
+    takeReactor(player);
+    playBody(player, "animation.sym.player.mk5_suitoff", 0.3);
+    sound(player, "sym.mk5.suitoff", stand);
+    shot(player, P(0, 0, 1.6), P(1.2, 0.3, 1.65), 0.8);
+  });
+  SUITOFF_STAGE_TICKS.forEach((tick, i) => {
+    if (i > 0) at(tick, () => equippable(player).setEquipment(EquipmentSlot.Chest, tempItem(DISASSEMBLING[i], damage)));
+  });
+  at(40, () => shot(player, P(0, 0, 1.2), P(2.4, 1.9, 1.4), 3.5));
+  at(120, () => shot(player, P(0, 0, 1.0), P(-2.2, 2.0, 1.3), 3.5));
+  at(200, () => shot(player, P(0, 0, 0.6), P(2.3, -1.2, 0.9), 3.0));
+  at(270, () => shot(player, P(0, 0, 0.9), P(2.6, 0.9, 1.1), 2.0));
+  at(SUITOFF_TICKS, () => {
+    const eq = equippable(player);
+    eq.setEquipment(EquipmentSlot.Chest, undefined);
+    const held = eq.getEquipment(EquipmentSlot.Mainhand);
+    const item = caseItem(damage);
+    if (!held) eq.setEquipment(EquipmentSlot.Mainhand, item);
+    else giveOrDrop(player, item);
+    lockPlayer(player, false);
+    safeRun(() => player.camera.clear());
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+// triggers
+// ---------------------------------------------------------------------------------------------
+
+function canStart(player) {
+  if (sessions.has(player.id)) return false;
+  if (wearing(player, ITEM_SUIT)) {
+    safeRun(() =>
+      player.onScreenDisplay.setActionBar("§eMark V já está vestida — use o Reator Arc para tirar")
+    );
+    return false;
+  }
+  if (player.getGameMode() === GameMode.Spectator) return false;
+  if (!player.isOnGround || player.isInWater || player.isFlying || player.isGliding) {
+    safeRun(() => player.onScreenDisplay.setActionBar("§cFique parado no chão para usar a maleta"));
+    return false;
+  }
+  return true;
+}
+
+function onUseReactor(player) {
+  const now = system.currentTick;
+  if ((lastUseTick.get(player.id) ?? -100) > now - 10) return;
+  lastUseTick.set(player.id, now);
+  if (sessions.has(player.id)) return;
+  if (!wearing(player, ITEM_SUIT)) {
+    safeRun(() => player.onScreenDisplay.setActionBar("§cVista a Mark V primeiro (use a Maleta Mark V)"));
+    return;
+  }
+  if (!player.isOnGround || player.isInWater || player.isFlying || player.isGliding) {
+    safeRun(() => player.onScreenDisplay.setActionBar("§cFique parado no chão para desmontar"));
+    return;
+  }
+  beginSuitOff(player);
+}
+
+function onUseCase(player) {
+  const now = system.currentTick;
+  if ((lastUseTick.get(player.id) ?? -100) > now - 10) return;
+  lastUseTick.set(player.id, now);
+  if (!canStart(player)) return;
+  if (player.isSneaking) placeCase(player);
+  else beginThrowSequence(player);
+}
+
+system.beforeEvents.startup.subscribe((ev) => {
+  const register = (name, handler) =>
+    ev.itemComponentRegistry.registerCustomComponent(name, {
+      onUse: (e) => system.run(() => e.source?.isValid && handler(e.source)),
+      onUseOn: (e) => {
+        const src = e.source;
+        if (src?.typeId === "minecraft:player") system.run(() => src.isValid && handler(src));
+      },
+    });
+  register("sym:mk5_suitcase", onUseCase);
+  register("sym:mk5_reactor", onUseReactor);
+});
+
+world.afterEvents.itemUse.subscribe((e) => {
+  if (e.itemStack?.typeId === ITEM_CASE) onUseCase(e.source);
+  else if (e.itemStack?.typeId === ITEM_REACTOR) onUseReactor(e.source);
+});
+
+// hit an idle case on the ground to pick it back up
+world.afterEvents.entityHitEntity.subscribe((e) => {
+  const ent = e.hitEntity;
+  if (ent?.typeId !== ENTITY_CASE || !ent.hasTag(CASE_TAG_IDLE)) return;
+  const player = e.damagingEntity;
+  if (player?.typeId !== "minecraft:player") return;
+  let damage = 0;
+  safeRun(() => (damage = Number(ent.getDynamicProperty(DAMAGE_PROP) ?? 0)));
+  ent.remove();
+  giveOrDrop(player, caseItem(damage));
+  sound(player, "armor.equip_leather", player.location, 1, 1.2);
+});
+
+// look down + double-tap sneak while wearing the Mark V -> take it off
+world.afterEvents.playerButtonInput.subscribe((e) => {
+  if (e.button !== InputButton.Sneak || e.newButtonState !== ButtonState.Pressed) return;
+  const player = e.player;
+  if (sessions.has(player.id) || !wearing(player, ITEM_SUIT)) return;
+  if (player.getRotation().x < 45 || !player.isOnGround) return;
+  const now = system.currentTick;
+  const prev = sneakTaps.get(player.id) ?? -100;
+  sneakTaps.set(player.id, now);
+  if (now - prev <= 10) {
+    sneakTaps.delete(player.id);
+    beginSuitOff(player);
+  }
+});
+
+// walking onto a placed case starts the suit-up
+system.runInterval(() => {
+  for (const dim of ["overworld", "nether", "the_end"]) {
+    let cases;
+    try {
+      cases = world.getDimension(dim).getEntities({ type: ENTITY_CASE, tags: [CASE_TAG_IDLE] });
+    } catch {
+      continue;
+    }
+    for (const ent of cases) {
+      for (const player of ent.dimension.getPlayers({ location: ent.location, maxDistance: 2.5 })) {
+        if (sessions.has(player.id) || wearing(player, ITEM_SUIT)) continue;
+        const dx = player.location.x - ent.location.x;
+        const dz = player.location.z - ent.location.z;
+        if (Math.hypot(dx, dz) > 0.7 || Math.abs(player.location.y - ent.location.y) > 0.8) continue;
+        if (!player.isOnGround || player.isFlying) continue;
+        ent.removeTag(CASE_TAG_IDLE);
+        beginFromPlacedCase(player, ent);
+        break; // one case, one suit
+      }
+    }
+  }
+}, 2);
+
+// ---------------------------------------------------------------------------------------------
+// safety net: interrupted sequences, stray temporary items, orphaned cases
+// ---------------------------------------------------------------------------------------------
+
+function recover(player) {
+  if (sessions.has(player.id)) return;
+  const eq = equippable(player);
+  if (!eq) return;
+  const state = player.getDynamicProperty(STATE_PROP);
+  const chest = eq.getEquipment(EquipmentSlot.Chest);
+  const temp = isAssembling(chest?.typeId) || isDisassembling(chest?.typeId);
+  if (state || temp) {
+    // a sequence was interrupted (reload, crash, /reload): finish it instantly
+    lockPlayer(player, false);
+    safeRun(() => player.camera.clear());
+    if (isAssembling(chest?.typeId)) eq.setEquipment(EquipmentSlot.Chest, suitItem(storedDamage(chest)));
+    else if (isDisassembling(chest?.typeId)) {
+      eq.setEquipment(EquipmentSlot.Chest, undefined);
+      giveOrDrop(player, caseItem(storedDamage(chest)));
+    }
+    safeRun(() => player.setDynamicProperty(STATE_PROP, undefined));
+  }
+  const container = inventory(player);
+  if (!container) return;
+  for (let i = 0; i < container.size; i++) {
+    const it = container.getItem(i);
+    if (isAssembling(it?.typeId)) container.setItem(i, suitItem(storedDamage(it)));
+    else if (isDisassembling(it?.typeId)) container.setItem(i, caseItem(storedDamage(it)));
+  }
+}
+
+world.afterEvents.playerSpawn.subscribe((e) =>
+  system.runTimeout(() => {
+    const player = e.player;
+    if (!player.isValid) return;
+    recover(player);
+    // first time in this world: hand over the Mark V suitcase
+    if (!player.getDynamicProperty(WELCOME_PROP)) {
+      player.setDynamicProperty(WELCOME_PROP, true);
+      if (!hasItem(player, ITEM_CASE) && !wearing(player, ITEM_SUIT)) giveOrDrop(player, caseItem());
+      safeRun(() =>
+        player.onScreenDisplay.setTitle("§cSym Industries", {
+          subtitle: "§7Você recebeu a §cMaleta Mark V",
+          fadeInDuration: 10,
+          stayDuration: 50,
+          fadeOutDuration: 15,
+        })
+      );
+    }
+  }, 10)
+);
+
+world.afterEvents.entitySpawn.subscribe((e) => {
+  const ent = e.entity;
+  if (!ent.isValid || ent.typeId !== "minecraft:item") return;
+  const stack = ent.getComponent("minecraft:item")?.itemStack;
+  if (!stack) return;
+  const damage = storedDamage(stack);
+  const replace = isAssembling(stack.typeId)
+    ? suitItem(damage)
+    : isDisassembling(stack.typeId)
+      ? caseItem(damage)
+      : undefined;
+  if (!replace) return;
+  const loc = ent.location;
+  const dim = ent.dimension;
+  ent.remove();
+  dim.spawnItem(replace, loc);
+});
+
+world.afterEvents.entityDie.subscribe((e) => {
+  const player = e.deadEntity;
+  if (player?.typeId !== "minecraft:player") return;
+  const session = sessions.get(player.id);
+  if (!session) return;
+  if (session.caseEntity?.isValid) {
+    session.caseEntity.remove();
+    giveOrDrop(player, caseItem(session.damage ?? 0));
+  }
+  endSession(session);
+});
+
+world.afterEvents.playerLeave.subscribe((e) => {
+  const session = sessions.get(e.playerId);
+  if (!session) return;
+  sessions.delete(e.playerId);
+  if (session.caseEntity?.isValid) {
+    const loc = session.caseEntity.location;
+    const dim = session.caseEntity.dimension;
+    session.caseEntity.remove();
+    safeRun(() => dim.spawnItem(caseItem(session.damage ?? 0), loc));
+  }
+});
+
+system.runInterval(() => {
+  for (const player of world.getAllPlayers()) recover(player);
+  // a flying/landing case without a session (e.g. after a reload) turns back into an item
+  for (const dim of ["overworld", "nether", "the_end"]) {
+    let cases;
+    try {
+      cases = world.getDimension(dim).getEntities({ type: ENTITY_CASE, excludeTags: [CASE_TAG_IDLE] });
+    } catch {
+      continue;
+    }
+    for (const ent of cases) {
+      const owned = [...sessions.values()].some((s) => s.caseEntity?.id === ent.id);
+      if (owned) continue;
+      const loc = ent.location;
+      const damage = storedDamage(ent);
+      ent.remove();
+      safeRun(() => world.getDimension(dim).spawnItem(caseItem(damage), loc));
+    }
+  }
+}, 40);

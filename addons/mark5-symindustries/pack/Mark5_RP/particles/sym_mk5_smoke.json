@@ -1,0 +1,82 @@
+{
+  "format_version": "1.10.0",
+  "particle_effect": {
+    "description": {
+      "identifier": "sym:mk5_smoke",
+      "basic_render_parameters": {
+        "material": "particles_blend",
+        "texture": "textures/sym/particle/mk5_fx"
+      }
+    },
+    "components": {
+      "minecraft:emitter_initialization": {
+        "creation_expression": "variable.dir ?? { variable.dir.x = 0.0; variable.dir.y = -1.0; variable.dir.z = 0.0; }; "
+      },
+      "minecraft:emitter_rate_instant": {
+        "num_particles": "math.random_integer(2, 4)"
+      },
+      "minecraft:emitter_lifetime_once": {
+        "active_time": 0.05
+      },
+      "minecraft:emitter_shape_custom": {
+        "offset": [
+          "math.random(-0.1, 0.1)",
+          "math.random(-0.1, 0.1)",
+          "math.random(-0.1, 0.1)"
+        ],
+        "direction": [
+          "variable.dir.x * 1.2 + math.random(-0.4, 0.4)",
+          "variable.dir.y * 1.2 + math.random(0.2, 0.7)",
+          "variable.dir.z * 1.2 + math.random(-0.4, 0.4)"
+        ]
+      },
+      "minecraft:particle_initialization": {
+        "per_render_expression": "variable.lt = math.clamp(variable.particle_age / variable.particle_lifetime, 0.0, 1.0);"
+      },
+      "minecraft:particle_lifetime_expression": {
+        "max_lifetime": "math.random(0.8, 1.4)"
+      },
+      "minecraft:particle_initial_speed": "math.random(0.8, 1.6)",
+      "minecraft:particle_initial_spin": {
+        "rotation": "math.random(0, 360)",
+        "rotation_rate": "math.random(-40, 40)"
+      },
+      "minecraft:particle_motion_dynamic": {
+        "linear_acceleration": [
+          0,
+          0.6,
+          0
+        ],
+        "linear_drag_coefficient": 1.2
+      },
+      "minecraft:particle_appearance_billboard": {
+        "size": [
+          "(0.12 + 0.45 * math.sqrt(variable.lt)) * (0.8 + 0.4 * variable.particle_random_2)",
+          "(0.12 + 0.45 * math.sqrt(variable.lt)) * (0.8 + 0.4 * variable.particle_random_2)"
+        ],
+        "facing_camera_mode": "lookat_xyz",
+        "uv": {
+          "texture_width": 256,
+          "texture_height": 576,
+          "uv": [
+            "128 + math.floor(variable.particle_random_3 * 3.99) * 32",
+            96
+          ],
+          "uv_size": [
+            32,
+            32
+          ]
+        }
+      },
+      "minecraft:particle_appearance_lighting": {},
+      "minecraft:particle_appearance_tinting": {
+        "color": [
+          "0.42 + 0.12 * variable.particle_random_4",
+          "0.42 + 0.12 * variable.particle_random_4",
+          "0.44 + 0.12 * variable.particle_random_4",
+          "0.55 * (1.0 - variable.lt) * math.clamp(variable.lt * 6.0, 0.0, 1.0)"
+        ]
+      }
+    }
+  }
+}

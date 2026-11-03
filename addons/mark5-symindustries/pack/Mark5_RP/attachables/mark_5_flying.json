@@ -1,0 +1,61 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:attachable": {
+    "description": {
+      "identifier": "sym:mark_5_flying",
+      "materials": {
+        "default": "entity_emissive_alpha"
+      },
+      "textures": {
+        "default": "textures/sym/mk5",
+        "flames": "textures/sym/mk5_flames"
+      },
+      "geometry": {
+        "default": "geometry.sym.mk5",
+        "flames": "geometry.sym.mk5_flames"
+      },
+      "animations": {
+        "held": "animation.sym.mk5.held",
+        "hidden": "animation.sym.mk5.hidden",
+        "first_person": "animation.sym.mk5.first_person",
+        "first_person_busy_hand": "animation.sym.mk5.first_person_busy_hand",
+        "worn": "animation.sym.mk5.worn",
+        "visor_shut": "animation.sym.mk5.visor_shut",
+        "flames_flicker": "animation.sym.mk5.flames_flicker",
+        "flames_hidden": "animation.sym.mk5.flames_hidden"
+      },
+      "scripts": {
+        "animate": [
+          {
+            "worn": "!(c.item_slot == 'main_hand' || c.item_slot == 'off_hand')"
+          },
+          {
+            "visor_shut": "!(c.item_slot == 'main_hand' || c.item_slot == 'off_hand')"
+          },
+          {
+            "flames_flicker": "!(c.item_slot == 'main_hand' || c.item_slot == 'off_hand') && !c.is_first_person"
+          },
+          {
+            "flames_hidden": "c.item_slot == 'main_hand' || c.item_slot == 'off_hand' || c.is_first_person"
+          },
+          {
+            "held": "c.item_slot == 'main_hand'"
+          },
+          {
+            "hidden": "c.item_slot == 'off_hand'"
+          },
+          {
+            "first_person": "c.is_first_person && !(c.item_slot == 'main_hand' || c.item_slot == 'off_hand')"
+          },
+          {
+            "first_person_busy_hand": "c.is_first_person && !(c.item_slot == 'main_hand' || c.item_slot == 'off_hand') && query.get_equipped_item_name(0, 1) != '' && query.get_equipped_item_name(0, 1) != 'filled_map'"
+          }
+        ]
+      },
+      "render_controllers": [
+        "controller.render.sym_mk5",
+        "controller.render.sym_mk5_flames"
+      ]
+    }
+  }
+}
