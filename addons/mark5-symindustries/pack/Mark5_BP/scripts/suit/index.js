@@ -174,7 +174,10 @@ function buildHud(player, st, tick, mode) {
       shield: energy.shieldReady(st),
       energyState: eState,
     }),
-    systems_text: systemsText({
+    // Systems text is only drawn in the right column when nothing else is there (no scan, no
+    // target). Writing an empty string in the other cases prevents it from bleeding through when
+    // the engine mishandles our `#visible` bindings.
+    systems_text: (st.scan || st.lookShown) ? "" : systemsText({
       regen: T.REGEN,
       drain: st.drain,
       flightMode: st.flight?.mode,

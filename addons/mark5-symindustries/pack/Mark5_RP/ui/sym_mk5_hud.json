@@ -253,7 +253,7 @@
                         {
                           "os": {
                             "type": "label",
-                            "text": "SYM OS 2.3",
+                            "text": "SYM OS 2.4",
                             "localize": false,
                             "shadow": true,
                             "font_type": "default",
@@ -1443,58 +1443,12 @@
                           }
                         },
                         {
-                          "caption_box": {
-                            "type": "panel",
-                            "anchor_from": "top_left",
-                            "anchor_to": "top_left",
-                            "offset": [
-                              6,
-                              1.5
-                            ],
-                            "size": [
-                              100,
-                              8
-                            ],
-                            "controls": [
-                              {
-                                "caption": {
-                                  "type": "label",
-                                  "text": "SISTEMAS",
-                                  "localize": false,
-                                  "shadow": true,
-                                  "font_type": "default",
-                                  "anchor_from": "top_left",
-                                  "anchor_to": "top_left",
-                                  "offset": [
-                                    0,
-                                    0
-                                  ],
-                                  "font_scale_factor": 0.5,
-                                  "color": [
-                                    0.42,
-                                    0.7,
-                                    0.82
-                                  ],
-                                  "layer": 2
-                                }
-                              }
-                            ],
-                            "bindings": [
-                              {
-                                "binding_name": "#hud_title_text_string",
-                                "binding_type": "global"
-                              },
-                              {
-                                "binding_type": "view",
-                                "source_property_name": "((('_' + (('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string))) = '_0') and (('_' + (('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string))) = '_0'))",
-                                "target_property_name": "#visible"
-                              }
-                            ]
-                          }
-                        },
-                        {
-                          "systems_text_box": {
-                            "type": "panel",
+                          "systems_text": {
+                            "type": "label",
+                            "text": "#text",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
                             "anchor_from": "top_left",
                             "anchor_to": "top_left",
                             "offset": [
@@ -1503,47 +1457,15 @@
                             ],
                             "size": [
                               142,
-                              38
+                              "default"
                             ],
-                            "controls": [
-                              {
-                                "systems_text": {
-                                  "type": "label",
-                                  "text": "#text",
-                                  "localize": false,
-                                  "shadow": true,
-                                  "font_type": "default",
-                                  "anchor_from": "top_left",
-                                  "anchor_to": "top_left",
-                                  "offset": [
-                                    0,
-                                    0
-                                  ],
-                                  "size": [
-                                    142,
-                                    "default"
-                                  ],
-                                  "font_scale_factor": 0.6,
-                                  "color": [
-                                    0.78,
-                                    0.95,
-                                    1
-                                  ],
-                                  "layer": 2,
-                                  "bindings": [
-                                    {
-                                      "binding_name": "#hud_title_text_string",
-                                      "binding_type": "global"
-                                    },
-                                    {
-                                      "binding_type": "view",
-                                      "source_property_name": "(('%.405s' * #hud_title_text_string) - ('%.245s' * #hud_title_text_string))",
-                                      "target_property_name": "#text"
-                                    }
-                                  ]
-                                }
-                              }
+                            "font_scale_factor": 0.6,
+                            "color": [
+                              0.78,
+                              0.95,
+                              1
                             ],
+                            "layer": 2,
                             "bindings": [
                               {
                                 "binding_name": "#hud_title_text_string",
@@ -1551,8 +1473,8 @@
                               },
                               {
                                 "binding_type": "view",
-                                "source_property_name": "((('_' + (('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string))) = '_0') and (('_' + (('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string))) = '_0'))",
-                                "target_property_name": "#visible"
+                                "source_property_name": "(('%.405s' * #hud_title_text_string) - ('%.245s' * #hud_title_text_string))",
+                                "target_property_name": "#text"
                               }
                             ]
                           }
@@ -1677,58 +1599,12 @@
                           }
                         },
                         {
-                          "caption_box": {
-                            "type": "panel",
-                            "anchor_from": "top_left",
-                            "anchor_to": "top_left",
-                            "offset": [
-                              18,
-                              3
-                            ],
-                            "size": [
-                              120,
-                              8
-                            ],
-                            "controls": [
-                              {
-                                "caption": {
-                                  "type": "label",
-                                  "text": "SCANNER DE ÁREA",
-                                  "localize": false,
-                                  "shadow": true,
-                                  "font_type": "default",
-                                  "anchor_from": "top_left",
-                                  "anchor_to": "top_left",
-                                  "offset": [
-                                    0,
-                                    0
-                                  ],
-                                  "font_scale_factor": 0.55,
-                                  "color": [
-                                    0.25,
-                                    0.85,
-                                    1
-                                  ],
-                                  "layer": 2
-                                }
-                              }
-                            ],
-                            "bindings": [
-                              {
-                                "binding_name": "#hud_title_text_string",
-                                "binding_type": "global"
-                              },
-                              {
-                                "binding_type": "view",
-                                "source_property_name": "(not (('_' + (('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string))) = '_0'))",
-                                "target_property_name": "#visible"
-                              }
-                            ]
-                          }
-                        },
-                        {
-                          "scan_text_box": {
-                            "type": "panel",
+                          "scan_text": {
+                            "type": "label",
+                            "text": "#text",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
                             "anchor_from": "top_left",
                             "anchor_to": "top_left",
                             "offset": [
@@ -1737,47 +1613,15 @@
                             ],
                             "size": [
                               141,
-                              50
+                              "default"
                             ],
-                            "controls": [
-                              {
-                                "scan_text": {
-                                  "type": "label",
-                                  "text": "#text",
-                                  "localize": false,
-                                  "shadow": true,
-                                  "font_type": "default",
-                                  "anchor_from": "top_left",
-                                  "anchor_to": "top_left",
-                                  "offset": [
-                                    0,
-                                    0
-                                  ],
-                                  "size": [
-                                    141,
-                                    "default"
-                                  ],
-                                  "font_scale_factor": 0.6,
-                                  "color": [
-                                    0.78,
-                                    0.95,
-                                    1
-                                  ],
-                                  "layer": 2,
-                                  "bindings": [
-                                    {
-                                      "binding_name": "#hud_title_text_string",
-                                      "binding_type": "global"
-                                    },
-                                    {
-                                      "binding_type": "view",
-                                      "source_property_name": "(('%.965s' * #hud_title_text_string) - ('%.677s' * #hud_title_text_string))",
-                                      "target_property_name": "#text"
-                                    }
-                                  ]
-                                }
-                              }
+                            "font_scale_factor": 0.6,
+                            "color": [
+                              0.78,
+                              0.95,
+                              1
                             ],
+                            "layer": 2,
                             "bindings": [
                               {
                                 "binding_name": "#hud_title_text_string",
@@ -1785,8 +1629,8 @@
                               },
                               {
                                 "binding_type": "view",
-                                "source_property_name": "(not (('_' + (('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string))) = '_0'))",
-                                "target_property_name": "#visible"
+                                "source_property_name": "(('%.965s' * #hud_title_text_string) - ('%.677s' * #hud_title_text_string))",
+                                "target_property_name": "#text"
                               }
                             ]
                           }
@@ -1970,58 +1814,12 @@
                           }
                         },
                         {
-                          "caption_box": {
-                            "type": "panel",
-                            "anchor_from": "top_left",
-                            "anchor_to": "top_left",
-                            "offset": [
-                              7,
-                              3
-                            ],
-                            "size": [
-                              120,
-                              8
-                            ],
-                            "controls": [
-                              {
-                                "caption": {
-                                  "type": "label",
-                                  "text": "ANÁLISE DE ALVO",
-                                  "localize": false,
-                                  "shadow": true,
-                                  "font_type": "default",
-                                  "anchor_from": "top_left",
-                                  "anchor_to": "top_left",
-                                  "offset": [
-                                    0,
-                                    0
-                                  ],
-                                  "font_scale_factor": 0.55,
-                                  "color": [
-                                    0.95,
-                                    0.98,
-                                    1
-                                  ],
-                                  "layer": 2
-                                }
-                              }
-                            ],
-                            "bindings": [
-                              {
-                                "binding_name": "#hud_title_text_string",
-                                "binding_type": "global"
-                              },
-                              {
-                                "binding_type": "view",
-                                "source_property_name": "((not (('_' + (('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string))) = '_0')) and (('_' + (('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string))) = '_0'))",
-                                "target_property_name": "#visible"
-                              }
-                            ]
-                          }
-                        },
-                        {
-                          "target_text_box": {
-                            "type": "panel",
+                          "target_text": {
+                            "type": "label",
+                            "text": "#text",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
                             "anchor_from": "top_left",
                             "anchor_to": "top_left",
                             "offset": [
@@ -2030,47 +1828,15 @@
                             ],
                             "size": [
                               138,
-                              34
+                              "default"
                             ],
-                            "controls": [
-                              {
-                                "target_text": {
-                                  "type": "label",
-                                  "text": "#text",
-                                  "localize": false,
-                                  "shadow": true,
-                                  "font_type": "default",
-                                  "anchor_from": "top_left",
-                                  "anchor_to": "top_left",
-                                  "offset": [
-                                    0,
-                                    0
-                                  ],
-                                  "size": [
-                                    138,
-                                    "default"
-                                  ],
-                                  "font_scale_factor": 0.65,
-                                  "color": [
-                                    0.95,
-                                    0.98,
-                                    1
-                                  ],
-                                  "layer": 2,
-                                  "bindings": [
-                                    {
-                                      "binding_name": "#hud_title_text_string",
-                                      "binding_type": "global"
-                                    },
-                                    {
-                                      "binding_type": "view",
-                                      "source_property_name": "(('%.565s' * #hud_title_text_string) - ('%.405s' * #hud_title_text_string))",
-                                      "target_property_name": "#text"
-                                    }
-                                  ]
-                                }
-                              }
+                            "font_scale_factor": 0.65,
+                            "color": [
+                              0.95,
+                              0.98,
+                              1
                             ],
+                            "layer": 2,
                             "bindings": [
                               {
                                 "binding_name": "#hud_title_text_string",
@@ -2078,8 +1844,8 @@
                               },
                               {
                                 "binding_type": "view",
-                                "source_property_name": "((not (('_' + (('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string))) = '_0')) and (('_' + (('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string))) = '_0'))",
-                                "target_property_name": "#visible"
+                                "source_property_name": "(('%.565s' * #hud_title_text_string) - ('%.405s' * #hud_title_text_string))",
+                                "target_property_name": "#text"
                               }
                             ]
                           }
@@ -2268,58 +2034,12 @@
                           }
                         },
                         {
-                          "caption_box": {
-                            "type": "panel",
-                            "anchor_from": "top_left",
-                            "anchor_to": "top_left",
-                            "offset": [
-                              7,
-                              3
-                            ],
-                            "size": [
-                              120,
-                              8
-                            ],
-                            "controls": [
-                              {
-                                "caption": {
-                                  "type": "label",
-                                  "text": "ANÁLISE DE ALVO",
-                                  "localize": false,
-                                  "shadow": true,
-                                  "font_type": "default",
-                                  "anchor_from": "top_left",
-                                  "anchor_to": "top_left",
-                                  "offset": [
-                                    0,
-                                    0
-                                  ],
-                                  "font_scale_factor": 0.55,
-                                  "color": [
-                                    0.95,
-                                    0.98,
-                                    1
-                                  ],
-                                  "layer": 2
-                                }
-                              }
-                            ],
-                            "bindings": [
-                              {
-                                "binding_name": "#hud_title_text_string",
-                                "binding_type": "global"
-                              },
-                              {
-                                "binding_type": "view",
-                                "source_property_name": "((not (('_' + (('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string))) = '_0')) and (not (('_' + (('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string))) = '_0')))",
-                                "target_property_name": "#visible"
-                              }
-                            ]
-                          }
-                        },
-                        {
-                          "target_text_box": {
-                            "type": "panel",
+                          "target_text": {
+                            "type": "label",
+                            "text": "#text",
+                            "localize": false,
+                            "shadow": true,
+                            "font_type": "default",
                             "anchor_from": "top_left",
                             "anchor_to": "top_left",
                             "offset": [
@@ -2328,47 +2048,15 @@
                             ],
                             "size": [
                               138,
-                              34
+                              "default"
                             ],
-                            "controls": [
-                              {
-                                "target_text": {
-                                  "type": "label",
-                                  "text": "#text",
-                                  "localize": false,
-                                  "shadow": true,
-                                  "font_type": "default",
-                                  "anchor_from": "top_left",
-                                  "anchor_to": "top_left",
-                                  "offset": [
-                                    0,
-                                    0
-                                  ],
-                                  "size": [
-                                    138,
-                                    "default"
-                                  ],
-                                  "font_scale_factor": 0.65,
-                                  "color": [
-                                    0.95,
-                                    0.98,
-                                    1
-                                  ],
-                                  "layer": 2,
-                                  "bindings": [
-                                    {
-                                      "binding_name": "#hud_title_text_string",
-                                      "binding_type": "global"
-                                    },
-                                    {
-                                      "binding_type": "view",
-                                      "source_property_name": "(('%.565s' * #hud_title_text_string) - ('%.405s' * #hud_title_text_string))",
-                                      "target_property_name": "#text"
-                                    }
-                                  ]
-                                }
-                              }
+                            "font_scale_factor": 0.65,
+                            "color": [
+                              0.95,
+                              0.98,
+                              1
                             ],
+                            "layer": 2,
                             "bindings": [
                               {
                                 "binding_name": "#hud_title_text_string",
@@ -2376,8 +2064,8 @@
                               },
                               {
                                 "binding_type": "view",
-                                "source_property_name": "((not (('_' + (('%.16s' * #hud_title_text_string) - ('%.15s' * #hud_title_text_string))) = '_0')) and (not (('_' + (('%.22s' * #hud_title_text_string) - ('%.21s' * #hud_title_text_string))) = '_0')))",
-                                "target_property_name": "#visible"
+                                "source_property_name": "(('%.565s' * #hud_title_text_string) - ('%.405s' * #hud_title_text_string))",
+                                "target_property_name": "#text"
                               }
                             ]
                           }
@@ -2692,7 +2380,7 @@
                   {
                     "header_boot": {
                       "type": "label",
-                      "text": "SYM INDUSTRIES  //  MARK V  //  SYM OS 2.3",
+                      "text": "SYM INDUSTRIES  //  MARK V  //  SYM OS 2.4",
                       "localize": false,
                       "shadow": true,
                       "font_type": "default",
