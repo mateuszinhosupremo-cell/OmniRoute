@@ -182,7 +182,7 @@ function expectedVisibility(v, headerOk) {
     "root/main/right_column/target_panel": v.target_class !== "0" && v.scan === "0",
     "root/main/right_column/target_panel_low": v.target_class !== "0" && v.scan !== "0",
     "root/main/right_column/systems_panel": v.scan === "0" && v.target_class === "0",
-    ...Object.fromEntries(["target_panel", "target_panel_low"].flatMap((p) => ["h", "n", "p", "j"].map((c) => [`root/main/right_column/${p}/frame_${c}`, v.target_class === c]))),
+    ...Object.fromEntries(["target_panel", "target_panel_low"].flatMap((p) => ["h", "n", "p", "j"].map((c) => [`root/main/right_column/${p}/frame_${c}`, v.target_class === c && (p === "target_panel" ? v.scan === "0" : v.scan !== "0") && v.target_class !== "0"]))),
     "root/main/top_center/alert_box": v.alert !== "0",
     "root/main/top_center/alert_box/alert_flash": v.alert === "c",
     "root/main/center/lock_ring": v.lock_frame !== "0",

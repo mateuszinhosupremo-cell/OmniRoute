@@ -244,7 +244,7 @@ function suitPanel() {
     });
   return image("panel_suit", { size: [152, 86], ...TL, layer: 1 }, [
     C("title", staticLabel("§lMARK V", { ...at(6, 2), font_scale_factor: 0.75, color: TXT.cyan, layer: 2 })),
-    C("os", staticLabel("SYM OS 2.0", { anchor_from: "top_right", anchor_to: "top_right", offset: [-17, 2.5], font_scale_factor: 0.5, color: TXT.dim, layer: 2 })),
+    C("os", staticLabel("SYM OS 2.3", { anchor_from: "top_right", anchor_to: "top_right", offset: [-17, 2.5], font_scale_factor: 0.5, color: TXT.dim, layer: 2 })),
     C("viewport", image("armor_viewport", { size: [46, 70], ...at(3, 12), layer: 1 }, [
       // the player animation sym_paperdoll_spin turns the model 360 degrees (variable.is_paperdoll)
       C("doll", panel({ size: [27, 27], anchor_from: "center", anchor_to: "center", offset: [0, -12], layer: 2 }, [
@@ -300,40 +300,66 @@ const RIGHT_GAP = 2;
 const TARGET_LOW_Y = SCAN_H + RIGHT_GAP;
 export const RIGHT_H = TARGET_LOW_Y + TARGET_H;
 
+// IN-GAME FIX (v2.3): the three right-column panels STILL bled through on real devices with
+// just #visible on captions. The reliable Bedrock JSON-UI pattern is: wrap every element in its
+// OWN panel sized 0x0 when hidden. We do this by making each sub-panel's top-level `size`
+// bindable: when the condition is false, we don't add any binding -> uses the declared size;
+// when true, we still use declared size. To actually HIDE children we rely on size=[0,0] on
+// the WRAPPER panel, controlled by a bindable size binding.
+//
+// Since size-bindings on panels are not well supported either, the simplest + most reliable
+// trick: wrap each caption/text in a DEDICATED panel whose only purpose is to carry #visible.
+// Panels DO respect #visible on themselves (tested) and the children render inside.
+// This reduces each label to a "panel>label" pair that the engine treats correctly.
+
+const visWrap = (inner, vis, props = {}) => panel({ size: inner.size || ["100%cm", "100%cm"], ...props, layer: props.layer ?? 2 }, [C("x", inner)], vis);
+
 /** Systems list: shown only while there is no scan / target to show. */
 function systemsPanel() {
   const W = RIGHT_W;
+  const vis = and(is("scan", "0"), is("target_class", "0"));
   return panel({ size: [W, SYSTEMS_H], ...at(0, 0), layer: 1 }, [
-    C("bg", image("panel_systems", { size: [W, SYSTEMS_H], ...at(0, 0), layer: 1 })),
-    C("caption", staticLabel("SISTEMAS", { ...at(6, 1.5), font_scale_factor: 0.5, color: TXT.dim, layer: 2 })),
-    C("systems_text", fieldLabel("systems_text", { ...at(5, 10), size: [W - 8, "default"], font_scale_factor: 0.6, color: TXT.ice, layer: 2 })),
-  ], and(is("scan", "0"), is("target_class", "0")));
+    C("bg", image("panel_systems", { size: [W, SYSTEMS_H], ...at(0, 0), layer: 1 }, [], vis)),
+    C("caption_box", panel({ ...at(6, 1.5), size: [100, 8] }, [
+      C("caption", staticLabel("SISTEMAS", { ...at(0, 0), font_scale_factor: 0.5, color: TXT.dim, layer: 2 })),
+    ], vis)),
+    C("systems_text_box", panel({ ...at(5, 10), size: [W - 8, SYSTEMS_H - 12] }, [
+      C("systems_text", fieldLabel("systems_text", { ...at(0, 0), size: [W - 8, "default"], font_scale_factor: 0.6, color: TXT.ice, layer: 2 })),
+    ], vis)),
+  ], vis);
 }
 
 function scanPanel() {
   const W = RIGHT_W;
+  const vis = isnt("scan", "0");
   return panel({ size: [W, SCAN_H], ...at(0, 0), layer: 1 }, [
-    C("bg", image("panel_scan", { size: [W, SCAN_H], ...at(0, 0), layer: 1 })),
+    C("bg", image("panel_scan", { size: [W, SCAN_H], ...at(0, 0), layer: 1 }, [], vis)),
     C("radar_idle", image("radar_idle", { size: [11, 11], ...at(4, 0.5), layer: 2 }, [], is("scan", "1"))),
     C("radar_sweep", image("radar_sweep", { size: [11, 11], ...at(4, 0.5), layer: 2, anims: [ref("anim_blink_out")] }, [], is("scan", "2"))),
-    C("caption", staticLabel("SCANNER DE ÁREA", { ...at(18, 3), font_scale_factor: 0.55, color: TXT.cyan, layer: 2 })),
-    C("scan_text", fieldLabel("scan_text", { ...at(5, 14), size: [141, "default"], font_scale_factor: 0.6, color: TXT.ice, layer: 2 })),
+    C("caption_box", panel({ ...at(18, 3), size: [120, 8] }, [
+      C("caption", staticLabel("SCANNER DE ÁREA", { ...at(0, 0), font_scale_factor: 0.55, color: TXT.cyan, layer: 2 })),
+    ], vis)),
+    C("scan_text_box", panel({ ...at(5, 14), size: [141, SCAN_H - 16] }, [
+      C("scan_text", fieldLabel("scan_text", { ...at(0, 0), size: [141, "default"], font_scale_factor: 0.6, color: TXT.ice, layer: 2 })),
+    ], vis)),
     C("sweep", image("scan_sweep", { size: [146, 6], ...at(2, 12), alpha: 0.9, layer: 3, anims: [ref("anim_scan_sweep")] }, [], is("scan", "2"))),
-  ], isnt("scan", "0"));
+  ], vis);
 }
 
 export const TARGET_CLASSES = ["h", "n", "p", "j"];
 
-/** Target analysis panel at height y: one STATIC frame image per class toggled by #visible, the
- *  dynamic hp bar is a sibling. Two copies exist (top / below the scan panel) with mutually
- *  exclusive visibility, because offsets cannot be bound. */
+/** Target analysis panel at height y: wrap labels in their own visibility panels. */
 function targetPanel(y, visible) {
   const W = RIGHT_W;
   return panel({ size: [W, TARGET_H], ...at(0, y), layer: 1 }, [
-    ...TARGET_CLASSES.map((c) => C(`frame_${c}`, image(`target_frame_${c}`, { size: [W, TARGET_H], ...at(0, 0), layer: 1 }, [], is("target_class", c)))),
-    C("caption", staticLabel("ANÁLISE DE ALVO", { ...at(7, 3), font_scale_factor: 0.55, color: TXT.white, layer: 2 })),
-    C("target_text", fieldLabel("target_text", { ...at(6, 14), size: [138, "default"], font_scale_factor: 0.65, color: TXT.white, layer: 2 })),
-    C("hp_bar", dynImage(texOf("hp_", cat(cat(fld("target_class"), lit("_")), fld("target_hp_frame"))), "hp_0_00", { size: [138, 5], ...at(6, 45), layer: 2 })),
+    ...TARGET_CLASSES.map((c) => C(`frame_${c}`, image(`target_frame_${c}`, { size: [W, TARGET_H], ...at(0, 0), layer: 1 }, [], and(visible, is("target_class", c))))),
+    C("caption_box", panel({ ...at(7, 3), size: [120, 8] }, [
+      C("caption", staticLabel("ANÁLISE DE ALVO", { ...at(0, 0), font_scale_factor: 0.55, color: TXT.white, layer: 2 })),
+    ], visible)),
+    C("target_text_box", panel({ ...at(6, 14), size: [138, TARGET_H - 20] }, [
+      C("target_text", fieldLabel("target_text", { ...at(0, 0), size: [138, "default"], font_scale_factor: 0.65, color: TXT.white, layer: 2 })),
+    ], visible)),
+    C("hp_bar", dynImage(texOf("hp_", cat(cat(fld("target_class"), lit("_")), fld("target_hp_frame"))), "hp_0_00", { size: [138, 5], ...at(6, 45), layer: 2 }, [], visible)),
   ], visible);
 }
 
@@ -416,7 +442,7 @@ function bootOverlay() {
     C("boot_frame", panel({ size: [230, 106], anchor_from: "center", anchor_to: "center", offset: [0, -14], layer: 1 }, [
       C("frame_boot", frame("2")),
       C("frame_fail", frame("3")),
-      C("header_boot", staticLabel("SYM INDUSTRIES  //  MARK V  //  SYM OS 2.0", { ...at(9, 3.5), font_scale_factor: 0.6, color: TXT.cyan, layer: 2 }, modeIs("2"))),
+      C("header_boot", staticLabel("SYM INDUSTRIES  //  MARK V  //  SYM OS 2.3", { ...at(9, 3.5), font_scale_factor: 0.6, color: TXT.cyan, layer: 2 }, modeIs("2"))),
       C("header_fail", staticLabel("§lALERTA  //  FALHA CRÍTICA DE ENERGIA", { ...at(9, 3.5), font_scale_factor: 0.6, color: TXT.red, layer: 2 }, modeIs("3"))),
       C("ring", dynImage(texOf("boot_ring_", m), "boot_ring_2", { size: [26, 26], anchor_from: "top_right", anchor_to: "top_right", offset: [-7, 19], layer: 2 })),
       C("boot_text", fieldLabel("boot_text", { ...at(9, 19), size: [180, "default"], font_scale_factor: 0.75, color: TXT.ice, layer: 2 })),

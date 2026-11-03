@@ -1,8 +1,8 @@
 #!/bin/sh
-# Builds dist/Mark5_SymIndustries_v2_1.mcaddon (BP + RP) from pack/.
+# Builds dist/Mark5_SymIndustries_v2_3.mcaddon (BP + RP) from pack/.
 set -eu
 cd "$(dirname "$0")/.."
-OUT="$(pwd)/dist/Mark5_SymIndustries_v2_1.mcaddon"
+OUT="$(pwd)/dist/Mark5_SymIndustries_v2_3.mcaddon"
 mkdir -p dist
 rm -f "$OUT"
 cd pack
